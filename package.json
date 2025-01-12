@@ -1,0 +1,16 @@
+{
+  "name": "typescript",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@wokwi/elements": "^0.16.2",
+    "avr8js": "^0.17.0",
+    "lit-html": "^1.2.1"
+  },
+  "devDependencies": {
+    "vite": "^2.9.9"
+  },
+  "scripts": {
+    "start": "vite"
+  }
+}

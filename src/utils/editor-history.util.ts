@@ -1,4 +1,4 @@
-const AVRJS8_EDITOR_HISTORY = 'AVRJS8_EDITOR_HISTORY';
+const AVRJS8_EDITOR_HISTORY = "AVRJS8_EDITOR_HISTORY";
 
 export class EditorHistoryUtil {
   static hasLocalStorage = !!window.localStorage;

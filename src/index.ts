@@ -1,4 +1,6 @@
 import "@wokwi/elements";
+import * as monaco from "monaco-editor";
+import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { buildHex } from "./compile";
 import { AVRRunner } from "./execute";
 import { formatTime } from "./format-time";
@@ -7,7 +9,6 @@ import { WS2812Controller } from "./ws2812";
 import "./index.css";
 import { EditorHistoryUtil } from "./utils/editor-history.util";
 
-let editor: any;
 const DEFAULT_CODE = `
 #include "FastLED.h"
 
@@ -37,31 +38,22 @@ void rainbow_beat() {
 }
 `.trim();
 
-// Load Editor
-declare const window: any;
-declare const monaco: any;
-window.require.config({
-  paths: {
-    vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs",
-  },
-});
-window.require(["vs/editor/editor.main"], () => {
-  editor = monaco.editor.create(document.querySelector(".code-editor"), {
-    value: EditorHistoryUtil.getValue() || DEFAULT_CODE,
-    language: "cpp",
-    minimap: { enabled: false },
-  });
+// Load Editor. C++ only needs the generic editor worker (no language-service worker).
+self.MonacoEnvironment = {
+  getWorker: () => new EditorWorker(),
+};
+const editor = monaco.editor.create(document.querySelector<HTMLElement>(".code-editor"), {
+  value: EditorHistoryUtil.getValue() || DEFAULT_CODE,
+  language: "cpp",
+  minimap: { enabled: false },
 });
 
 // Set up the NeoPixel matrix
-const matrix = document.querySelector<NeopixelMatrixElement & HTMLElement>(
-  "wokwi-neopixel-matrix"
-);
+const matrix = document.querySelector<NeopixelMatrixElement & HTMLElement>("wokwi-neopixel-matrix");
 
 // Set up toolbar
 let runner: AVRRunner;
 
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const runButton = document.querySelector("#run-button");
 runButton.addEventListener("click", compileAndRun);
 const stopButton = document.querySelector("#stop-button");
@@ -117,7 +109,7 @@ async function compileAndRun() {
 
   try {
     statusLabel.textContent = "Compiling...";
-    const result = await buildHex(editor.getModel().getValue());
+    const result = await buildHex(editor.getValue());
     compilerOutputText.textContent = result.stderr || result.stdout;
     if (result.hex) {
       compilerOutputText.textContent += "\nProgram running...";

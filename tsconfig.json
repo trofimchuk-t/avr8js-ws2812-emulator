@@ -1,22 +1,15 @@
 {
   "compilerOptions": {
-    "target": "es2018",
-    "module": "ES2015",
-    "moduleResolution": "node",
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
     "noImplicitAny": true,
-    "strictNullChecks": false,
-    "removeComments": false,
-    "sourceMap": true,
-    "declaration": true,
-    "noEmitOnError": true,
-    "rootDir": ".",
-    "outDir": "dist",
-    "baseUrl": ".",
-    "lib": ["es2015", "dom"],
-	"paths": {
-      "avr8js": ["node_modules/avr8js"]
-    }
+    "strictNullChecks": false
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts"]
+  "include": ["src/**/*.ts", "*.config.ts", "*.config.js"]
 }

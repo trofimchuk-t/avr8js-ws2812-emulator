@@ -8,10 +8,16 @@ A browser-only demo that runs Arduino sketches using FastLED on a simulated ATme
 
 ## Commands
 
+`package.json` pins Node 24 LTS and Yarn through Volta. ESLint 10 does not support Node 23.
+
 - `yarn install`: install dependencies
 - `yarn start`: Vite dev server at http://localhost:3000
+- `yarn typecheck`: `tsc` (no emit)
+- `yarn lint` / `yarn lint:fix`: ESLint (flat config in `eslint.config.js`, typescript-eslint recommended)
+- `yarn format` / `yarn format:check`: Prettier (`*.md` is ignored)
+- `yarn check`: typecheck + lint + format check
 
-The repo has no build script, tests, linter, or TypeScript compiler dependency. Vite transpiles `src/*.ts` on the fly and does not type-check.
+The repo has no build script or tests. Vite transpiles `src/*.ts` on the fly and does not type-check, so run `yarn check`. TypeScript is pinned to 6.0.x because typescript-eslint supports only TypeScript < 6.1.
 
 ## Architecture
 
@@ -21,13 +27,13 @@ Pipeline: **sketch source → remote compile → Intel HEX → AVR emulation →
 - `src/intelhex.ts`: minimal Intel HEX loader that writes into the program flash buffer.
 - `src/execute.ts` (`AVRRunner`): wires up the CPU, timer0, ports B/C/D, and USART0 at 16 MHz. `execute()` is a tight instruction loop that every 500,000 cycles calls the UI callback and yields to the event loop with `setTimeout(0)`. That yield is the only point where `stop()` takes effect.
 - `src/ws2812.ts` (`WS2812Controller`): decodes the WS2812 bitstream from pin transitions timestamped in simulated nanoseconds (`cpu.cycles / 16 MHz`). It classifies HIGH/LOW pulse widths against the `ZERO_*`/`ONE_*` constants with a `MARGIN` tolerance tuned for FastLED's timing, assembles 24-bit pixels, and resets on a LOW of 50 µs or more. The last bit of a frame is inferred (`checkLastBit` / `update`) because the trailing LOW may never be followed by another edge.
-- `src/index.ts`: UI glue. It loads Monaco from the cdnjs AMD loader (the global `window.require` set up by the script tag in `index.html`), connects the toolbar buttons, and feeds PORTD pin 3 changes into the controller. On each callback it copies pixels to the matrix. Serial output comes from `usart.onByteTransmit`.
+- `src/index.ts`: UI glue. It creates the Monaco editor from the `monaco-editor` npm package. `self.MonacoEnvironment.getWorker` supplies the generic editor worker through Vite's `?worker` import, which is the only worker C++ needs. It connects the toolbar buttons, and feeds PORTD pin 3 changes into the controller. On each callback it copies pixels to the matrix. Serial output comes from `usart.onByteTransmit`.
 
 Hardcoded assumptions that must change together:
 - The LED data pin is **PORTD pin 3** (Arduino D3), so sketches must use `DATA_PIN 3`.
 - The LED count comes from the `<wokwi-neopixel-matrix cols="50" rows="1">` attributes in `index.html`.
 - Decoded pixel words are **GRB**: G in bits 16–23, R in bits 8–15, B in bits 0–7. `index.ts` unpacks them in that order.
 
-The editor contents persist in `localStorage` under the key `AVRJS8_EDITOR_HISTORY` (`src/utils/editor-history.util.ts`). Revert restores `DEFAULT_CODE` in `index.ts`.
+The editor contents are saved to `localStorage` under the key `AVRJS8_EDITOR_HISTORY` (`src/utils/editor-history.util.ts`) only when Run or Revert is pressed. Edits that are never run are lost on reload. Revert restores `DEFAULT_CODE` in `index.ts` and saves it.
 
 `demo_sketches/*.ino` holds sample sketches that users copy into the editor by hand. The app does not load them.

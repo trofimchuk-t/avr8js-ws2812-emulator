@@ -1,4 +1,4 @@
-import { PinState } from 'avr8js';
+import { PinState } from "avr8js";
 
 const ZERO_HIGH = 400; // ±150ns
 const ONE_HIGH = 800; // ±150ns
@@ -20,8 +20,7 @@ export class WS2812Controller {
   private overflow = false;
   private updated = true;
 
-  constructor(private numPixels = 0) {
-  }
+  constructor(private numPixels = 0) {}
 
   feedValue(pinState: PinState, cpuNanos: number) {
     if (pinState !== this.lastState) {

@@ -1,14 +1,10 @@
 {
-  "name": "typescript",
+  "name": "avr8js-ws2812-emulator",
   "version": "0.0.0",
   "private": true,
-  "dependencies": {
-    "@wokwi/elements": "^1.9.2",
-    "avr8js": "^0.21.1",
-    "fastify": "^5.12.8",
-    "lit-html": "^3.3.3",
-    "monaco-editor": "0.57.0"
-  },
+  "workspaces": [
+    "packages/*"
+  ],
   "devDependencies": {
     "@eslint/js": "10.0.1",
     "@types/node": "24",
@@ -18,18 +14,18 @@
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
-    "vite": "^8.3.5",
     "vitest": "^5.1.0"
   },
   "scripts": {
-    "start": "vite --port 3000",
-    "server": "node server/main.ts",
-    "typecheck": "tsc",
+    "start": "yarn workspace @avr8js-ws2812/web start",
+    "server": "yarn workspace @avr8js-ws2812/server start",
+    "typecheck": "yarn workspaces run typecheck",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "golden:update": "node scripts/update-golden.ts",
     "check": "yarn typecheck && yarn lint && yarn format:check && yarn test"
   },
   "volta": {

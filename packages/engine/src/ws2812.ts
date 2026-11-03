@@ -8,7 +8,7 @@ const MARGIN = 160; // 160 gives extra margin for FastLED
 const RESET_TIME = 50000;
 
 export class WS2812Controller {
-  readonly pixels = new Uint32Array(this.numPixels);
+  readonly pixels: Uint32Array;
 
   private pixelIndex = 0;
   private currentValue = 0;
@@ -20,7 +20,12 @@ export class WS2812Controller {
   private overflow = false;
   private updated = true;
 
-  constructor(private numPixels = 0) {}
+  private readonly numPixels: number;
+
+  constructor(numPixels = 0) {
+    this.numPixels = numPixels;
+    this.pixels = new Uint32Array(numPixels);
+  }
 
   feedValue(pinState: PinState, cpuNanos: number) {
     if (pinState !== this.lastState) {

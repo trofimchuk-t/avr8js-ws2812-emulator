@@ -10,14 +10,14 @@ import {
   AVRUSART,
   usart0Config,
 } from "avr8js";
-import { loadHex } from "./intelhex";
+import { loadHex } from "./intelhex.ts";
 
 // ATmega328p params
 const FLASH = 0x8000;
 
-// Cycles between UI callbacks / event-loop yields
-const TICK_CYCLES = 500000;
+export const CPU_HZ = 16e6;
 
+/** Low-level ATmega328p wiring at 16 MHz. Has no event loop of its own; see `Simulation`. */
 export class AVRRunner {
   readonly program = new Uint16Array(FLASH);
   readonly cpu: CPU;
@@ -27,9 +27,7 @@ export class AVRRunner {
   readonly portD: AVRIOPort;
   readonly usart: AVRUSART;
 
-  readonly MHZ = 16e6;
-
-  private stopped = false;
+  readonly MHZ = CPU_HZ;
 
   constructor(hex: string) {
     loadHex(hex, new Uint8Array(this.program.buffer));
@@ -41,25 +39,18 @@ export class AVRRunner {
     this.usart = new AVRUSART(this.cpu, usart0Config, this.MHZ);
   }
 
-  async execute(callback: (cpu: CPU) => void) {
-    this.stopped = false;
-    // Instructions take several cycles, so compare against a threshold instead of using `%`.
-    let nextTick = this.cpu.cycles + TICK_CYCLES;
-    for (;;) {
-      avrInstruction(this.cpu);
-      this.cpu.tick();
-      if (this.cpu.cycles >= nextTick) {
-        nextTick = this.cpu.cycles + TICK_CYCLES;
-        callback(this.cpu);
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        if (this.stopped) {
-          break;
-        }
-      }
-    }
+  /** Executes one instruction. */
+  step() {
+    avrInstruction(this.cpu);
+    this.cpu.tick();
   }
 
-  stop() {
-    this.stopped = true;
+  /** Executes instructions until the CPU has reached `targetCycles` (it may overshoot slightly). */
+  runUntil(targetCycles: number) {
+    const cpu = this.cpu;
+    while (cpu.cycles < targetCycles) {
+      avrInstruction(cpu);
+      cpu.tick();
+    }
   }
 }

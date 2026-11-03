@@ -1,0 +1,22 @@
+{
+  "name": "@avr8js-ws2812/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@avr8js-ws2812/engine": "*",
+    "@wokwi/elements": "^1.9.2",
+    "lit-html": "^3.3.3",
+    "monaco-editor": "0.57.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.5"
+  },
+  "scripts": {
+    "start": "vite --port 3000",
+    "typecheck": "tsc"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  }
+}

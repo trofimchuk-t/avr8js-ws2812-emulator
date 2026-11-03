@@ -15,7 +15,7 @@ First, install the project dependencies by running:
 yarn install
 ```
 
-Sketches are compiled by a local server that wraps [arduino-cli](https://arduino.github.io/arduino-cli/). Install the pinned toolchain once (the server refuses to start if the versions differ, see `server/config.ts`):
+Sketches are compiled by a local server that wraps [arduino-cli](https://arduino.github.io/arduino-cli/). Install the pinned toolchain once (the server refuses to start if the versions differ, see `packages/server/config.ts`):
 
 ```sh
 brew install arduino-cli   # or see the arduino-cli install docs

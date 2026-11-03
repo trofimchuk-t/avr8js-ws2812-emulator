@@ -1,5 +1,5 @@
 # Compile server with a pinned, reproducible toolchain.
-# Keep the versions in sync with server/config.ts (the server refuses to start on a mismatch).
+# Keep the versions in sync with packages/server/config.ts (the server refuses to start on a mismatch).
 FROM node:24-slim
 
 ARG ARDUINO_CLI_VERSION=1.5.1
@@ -22,10 +22,15 @@ RUN arduino-cli core update-index \
     && arduino-cli core install arduino:avr@${AVR_CORE_VERSION} \
     && arduino-cli lib install FastLED@${FASTLED_VERSION}
 
+# Workspaces: all package.json files must be present for a frozen-lockfile install.
 COPY --chown=builder package.json yarn.lock ./
+COPY --chown=builder packages/engine/package.json ./packages/engine/
+COPY --chown=builder packages/web/package.json ./packages/web/
+COPY --chown=builder packages/server/package.json ./packages/server/
 RUN corepack enable && yarn install --frozen-lockfile --production
-COPY --chown=builder server ./server
+COPY --chown=builder packages/server ./packages/server
 
 ENV HOST=0.0.0.0 PORT=3001
 EXPOSE 3001
-CMD ["node", "server/main.ts"]
+WORKDIR /home/builder/app/packages/server
+CMD ["node", "main.ts"]

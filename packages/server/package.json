@@ -1,0 +1,16 @@
+{
+  "name": "@avr8js-ws2812/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "fastify": "^5.12.8"
+  },
+  "scripts": {
+    "start": "node main.ts",
+    "typecheck": "tsc"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  }
+}

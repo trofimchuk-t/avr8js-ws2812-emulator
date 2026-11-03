@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PinState } from "avr8js";
-import { WS2812Controller } from "./ws2812";
+import { WS2812Controller } from "./ws2812.ts";
 
 const ZERO = { high: 400, low: 850 };
 const ONE = { high: 800, low: 450 };
@@ -8,7 +8,10 @@ const ONE = { high: 800, low: 450 };
 /** Drives a controller with synthetic pin edges, tracking simulated time. */
 class Driver {
   t = 1000;
-  constructor(readonly ctrl: WS2812Controller) {}
+  readonly ctrl: WS2812Controller;
+  constructor(ctrl: WS2812Controller) {
+    this.ctrl = ctrl;
+  }
 
   pulse(high: number, low: number) {
     this.ctrl.feedValue(PinState.High, this.t);

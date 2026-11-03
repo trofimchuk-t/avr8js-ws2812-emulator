@@ -1,17 +1,32 @@
 # Архітектура: AVR8js NeoPixels + FastLED Demo
 
-Опис складений за вмістом файлів `index.html`, `package.json` і `src/*`.
+Опис складений за вмістом файлів репозиторію (`package.json`, `packages/*`, `Dockerfile`,
+`scripts/`). Станом на завершену фазу 2 з `PLAN.md`.
 
 ## Що це
 
-Браузерний застосунок, який виконує Arduino-скетч із FastLED на емульованому
-ATmega328p ([avr8js](https://github.com/wokwi/avr8js)) і малює вихідний сигнал
-WS2812/NeoPixel на елементі `<wokwi-neopixel-matrix>`. Користувач пише скетч у
-редакторі Monaco й натискає Run.
+Застосунок, який виконує Arduino-скетч із FastLED на емульованому ATmega328p
+([avr8js](https://github.com/wokwi/avr8js)) і малює вихідний сигнал WS2812/NeoPixel на
+елементі `<wokwi-neopixel-matrix>`. Користувач пише скетч у редакторі Monaco й натискає Run.
+Скетч компілює локальний сервер через `arduino-cli`, емуляція працює в браузері.
 
-Залежності: `avr8js`, `@wokwi/elements`, `lit-html`. Dev-залежність: `vite`.
-Запуск: `yarn start` (Vite на порту 3000). Збірки, тестів і лінтера немає, Vite
-лише транспілює TypeScript на льоту без перевірки типів.
+## Монорепо
+
+Yarn 1 workspaces, Node 24 і Yarn зафіксовано через Volta (у кожному пакеті є
+`volta.extends`, щоб Node 24 діяв і всередині `packages/*`).
+
+| Пакет | Призначення |
+|---|---|
+| `packages/engine` (`@avr8js-ws2812/engine`) | Рушій без DOM: CPU, декодер WS2812, `createSimulation`. Працює в браузері й у Node. |
+| `packages/web` (`@avr8js-ws2812/web`) | Фронтенд на Vite: редактор, кнопки, матриця, панелі виводу. |
+| `packages/server` (`@avr8js-ws2812/server`) | Fastify-сервер компіляції. |
+
+Корінь: `tsconfig.base.json` (спільні опції), `eslint.config.js`, `.prettierrc.json`,
+`scripts/update-golden.ts`, `demo_sketches/*.ino`, `Dockerfile`.
+
+Запуск: `yarn server` (порт 3001) і `yarn start` (Vite, порт 3000, проксує `/api` на сервер).
+Перевірки: `yarn run check` (typecheck у кожному пакеті, ESLint, Prettier, Vitest). Звичайний
+`yarn check` викликає вбудовану команду Yarn, тому потрібен саме `yarn run`.
 
 ## Загальний потік даних
 
@@ -19,131 +34,135 @@ WS2812/NeoPixel на елементі `<wokwi-neopixel-matrix>`. Користу�
 скетч у Monaco
    │  Run
    ▼
-compile.ts ──POST──► /api/compile (server/, arduino-cli) ──► { stdout, stderr, hex }
+web/compile.ts ──POST──► /api/compile (packages/server, arduino-cli) ──► { stdout, stderr, hex }
    │
    ▼
-execute.ts: AVRRunner(hex)
+engine: createSimulation({ hex, led, onFrame, onSerial, onProgress })
    ├─ intelhex.ts: HEX → flash (Uint16Array)
-   └─ CPU + timer0 + порти B/C/D + USART0 @ 16 МГц
+   ├─ execute.ts (AVRRunner): CPU + timer0 + порти B/C/D + USART0 @ 16 МГц
+   ├─ слухач PORTD, біт 3 ──► ws2812.ts (feedValue, час у нс)
+   └─ цикл по 500 000 циклів: update() ► onFrame(пікселі), onProgress(нс), yield setTimeout
    │
-   │  цикл: avrInstruction + cpu.tick
-   │
-   ├─ зміна PORTD ──► index.ts ──► ws2812.ts (feedValue, пін 3, час у нс)
-   ├─ байт USART ───► index.ts ──► панель Serial output
-   └─ кожні 500 000 циклів ► колбек у index.ts:
-         ├─ format-time.ts: «Simulation time: MM:SS.mmm»
-         └─ ws2812.ts update() ► нові пікселі ► matrix.setPixel(...)
+   ▼
+web/index.ts: onFrame ► matrix.setPixel(...), onSerial ► панель Serial, onProgress ► статус
 ```
 
-## Файли
+## `packages/engine`
 
-### Корінь
-
-| Файл | Призначення |
-|---|---|
-| `index.html` | Каркас сторінки. Матриця `<wokwi-neopixel-matrix cols="50" rows="1">`, панель кнопок (`#run-button`, `#stop-button` спочатку disabled, `#revert-button`, `#status-label`), контейнер `.code-editor`, дві панелі виводу (`#compiler-output-text`, `#serial-output-text`). Підключає модуль `./src/index.ts`. |
-| `package.json` | Залежності та скрипт `start`. Версії Node і Yarn зафіксовано через Volta. |
-| `demo_sketches/*.ino` | Приклади скетчів (`rainbow`, `rainbow_beat`, `pacifica`, `fadeTowardColor`). Застосунок їх не завантажує, їх копіюють у редактор вручну. |
-| `CLAUDE.md` | Інструкції для Claude Code. |
-
-### `src/`
+Конфіг `tsconfig.json` без DOM-бібліотеки, тому `window` і `document` недоступні. Лише erasable-синтаксис
+TypeScript, щоб Node міг запускати файли напряму (параметри-властивості класів не
+використовуються).
 
 | Файл | Призначення |
 |---|---|
-| `index.ts` | Точка входу, склеює UI з рештою модулів. Створює редактор Monaco (мова `cpp`, без мінімапи) з початковим текстом із `EditorHistoryUtil` або з `DEFAULT_CODE` (скетч `rainbow_beat`, 50 діодів, `DATA_PIN 3`). Містить обробники Run, Stop і Revert, функцію `executeProgram`, яка запускає емуляцію й оновлює матрицю. |
-| `compile.ts` | `buildHex(source)` робить POST `{ sketch }` на `${VITE_API_URL ?? "/api"}/compile` (власний сервер у `server/`) і повертає JSON `{ stdout, stderr, hex }`. Мережеві помилки й не-2xx статуси кидають `CompileError`. Помилка компіляції приходить як відповідь без `hex`, а текст помилки лежить у `stderr`. |
-| `intelhex.ts` | `loadHex(source, target)` розбирає Intel HEX. Обробляє лише записи даних (тип `00`), решту ігнорує. Байти пише за адресою запису в `Uint8Array`. |
-| `execute.ts` | Клас `AVRRunner`. Flash — `Uint16Array(0x8000)`. Створює `CPU`, `AVRTimer` (timer0), `AVRIOPort` для B/C/D і `AVRUSART` (USART0), тактова частота 16 МГц. `execute(callback)` виконує інструкції в циклі. Коли `cpu.cycles % 500000 === 0`, викликає колбек і робить `await setTimeout(0)`. Тільки тут перевіряється прапорець `stopped`. `stop()` лише виставляє цей прапорець. |
-| `ws2812.ts` | Клас `WS2812Controller(numPixels)`. Декодує протокол WS2812 з переходів піна, див. нижче. |
-| `format-time.ts` | `formatTime(seconds)` повертає рядок `MM:SS.mmm`. Використовується для напису про симульований час. |
-| `index.css` | Розмітка: ширина `.app-container` 800px, `.toolbar` (flex), `.pixels` (темний фон), `.code-editor` (висота 500px), `.compiler-output` (до 120px зі скролом), синій колір для `#serial-output-text`. |
-| `utils/editor-history.util.ts` | Клас `EditorHistoryUtil` зі статичними методами `storeSnippet`, `clearSnippet`, `getValue` над `localStorage` (ключ `AVRJS8_EDITOR_HISTORY`). |
+| `src/index.ts` | Публічні експорти: `createSimulation`, `cyclesToNanos`, типи, `AVRRunner`, `WS2812Controller`, `loadHex`, `formatTime`. |
+| `src/simulation.ts` | `createSimulation(options): Simulation`. Створює `AVRRunner` і `WS2812Controller(led.count)`, підписується на PORTD (пін 3, `DATA_PORT_D_BIT`) і на `usart.onByteTransmit`, веде цикл виконання. |
+| `src/execute.ts` | `AVRRunner`: flash `Uint16Array(0x8000)`, `CPU`, `AVRTimer` (timer0), `AVRIOPort` B/C/D, `AVRUSART` (USART0), `CPU_HZ = 16e6`. Власного циклу немає: лише `step()` (одна інструкція) і `runUntil(cycles)`. |
+| `src/ws2812.ts` | `WS2812Controller(numPixels)`, декодер протоколу, див. нижче. |
+| `src/intelhex.ts` | `loadHex(source, target)`: розбирає лише записи даних (тип `00`). |
+| `src/format-time.ts` | `formatTime(seconds)` → `MM:SS.mmm`. |
+| `test/golden.ts`, `test/golden.test.ts`, `test/fixtures/` | Golden-тести, див. нижче. |
+| `src/*.test.ts` | Юніт-тести декодера (`ws2812.test.ts`) і `Simulation` (`simulation.test.ts`). |
 
-## Як працює додаток
+### API `Simulation`
 
-### 1. Старт сторінки
-`index.ts` імпортує Monaco з npm-пакета `monaco-editor`, задає
-`self.MonacoEnvironment.getWorker` (воркер редактора через Vite `?worker`) і створює
-редактор. Якщо в `localStorage` є збережений код, він завантажується, інакше
-береться `DEFAULT_CODE`.
+```ts
+createSimulation({ hex, led: { count }, onFrame, onSerial, onProgress }): Simulation
+// Simulation: state, nanos, start(), pause(), stop(), step(cycles = 1), setSpeed(x)
+```
 
-### 2. Run (`compileAndRun`)
-1. Поточний код зберігається в `localStorage`.
-2. Run і Revert вимикаються, панель Serial очищується, статус «Compiling...».
-3. `buildHex` надсилає код на віддалений компілятор Wokwi. Локально нічого не
-   компілюється, FastLED надає сам компілятор, тому потрібен інтернет.
-4. У панель компілятора виводиться `stderr` або `stdout`.
-5. Якщо `hex` є, вмикається Stop і викликається `executeProgram(hex)`. Якщо ні,
-   знову вмикається Run. У разі винятку показується `alert`.
+- `onFrame(pixels, nanos)`: копія масиву `Uint32Array`, слова **GRB** (G у бітах 16–23,
+  R у 8–15, B у 0–7). Викликається лише коли декодер має зміни.
+- `onSerial(char)`: кожен байт USART як односимвольний рядок.
+- `onProgress(nanos)`: приблизно раз на 31 мс симульованого часу.
+- `start()` запускає або поновлює після `pause()`. `pause()` зупиняє на найближчому
+  yield і зберігає стан. `stop()` остаточний: для нового запуску створюється нова симуляція.
+  Токен `runId` не дає застарілому циклу жити після pause → start.
+- `step(cycles)` синхронно виконує щонайменше стільки циклів і повідомляє кадр. Дозволений
+  лише поза `running`. Використовується в тестах і для покрокового виконання.
+- `setSpeed(x)`: цільова швидкість у кратності реального часу. За замовчуванням `Infinity`
+  (без обмеження, як було раніше). `1` дає реальний час 16 МГц. Хост може не встигати.
+- Цикл: кожні 500 000 циклів перевіряє кадр, викликає `onProgress` і віддає керування
+  через `setTimeout` (0 мс або затримка пейсингу). Лише в цій точці діють `pause()` і `stop()`.
+- Час: `cyclesToNanos(cycles) = round(cycles / 16e6 * 1e9)`.
 
-### 3. Емуляція (`executeProgram`)
-- `AVRRunner` завантажує HEX у flash і створює периферію ATmega328p.
-- `WS2812Controller` створюється на `matrix.cols * matrix.rows` пікселів,
-  тобто кількість діодів береться з атрибутів у `index.html`.
-- На `portD` вішається слухач. На будь-яку зміну порту він передає в
-  контролер стан піна 3 і час у наносекундах
-  (`cycles / 16 МГц * 1e9`).
-- Байти з `usart.onByteTransmit` дописуються в панель Serial як символи.
-- `runner.execute(...)` запускає цикл. На кожному колбеку (раз на 500 000
-  циклів, це приблизно 31 мс симульованого часу) оновлюється напис
-  «Simulation time» і зчитуються нові пікселі.
+### Декодування WS2812 (`ws2812.ts`)
 
-### 4. Декодування WS2812 (`ws2812.ts`)
-Час — у симульованих наносекундах, тож результат не залежить від швидкості
-реального браузера.
-- Контролер реагує лише на зміну стану піна й рахує тривалість попереднього
-  стану.
-- Тривалість HIGH порівнюється з `ZERO_HIGH` (400 нс) і `ONE_HIGH` (800 нс) із
-  допуском `MARGIN` (160 нс). Так ставиться кандидат `detectZero` або
-  `detectOne`.
-- Біт зараховується, коли наступний LOW достатньо довгий:
-  `≥ ZERO_LOW - MARGIN` (850 нс) для нуля або `≥ ONE_LOW - MARGIN` (450 нс)
-  для одиниці.
-- 24 біти збираються в слово, старший біт першим, і записуються в
-  `pixels[pixelIndex]`. Після заповнення всіх пікселів ставиться `overflow`,
-  і далі імпульси ігноруються.
-- LOW тривалістю `≥ 50 000 нс` (`RESET_TIME`) скидає стан, і наступний кадр
-  починається з першого піксела.
-- Останній біт кадру визначається окремо, бо після нього лінія може довго не
-  змінювати стан. `checkLastBit` на спадному фронті при `bitIndex === 23`
-  записує піксел із передбаченим значенням. `update()` дописує останній піксел,
-  якщо біт нульовий і минуло достатньо часу.
-- `update(cpuNanos)` повертає масив пікселів лише тоді, коли були зміни,
-  інакше `null`.
+Час — у симульованих наносекундах, тож результат не залежить від швидкості браузера.
+- Контролер реагує лише на зміну стану піна й рахує тривалість попереднього стану.
+- Тривалість HIGH порівнюється з `ZERO_HIGH` (400 нс) і `ONE_HIGH` (800 нс) із допуском
+  `MARGIN` (160 нс). Так ставиться кандидат `detectZero` або `detectOne`.
+- Біт зараховується, коли наступний LOW достатньо довгий: `≥ ZERO_LOW - MARGIN` (850 нс) для
+  нуля або `≥ ONE_LOW - MARGIN` (450 нс) для одиниці.
+- 24 біти збираються в слово, старший біт першим. Після заповнення всіх пікселів
+  ставиться `overflow`, і далі імпульси ігноруються.
+- LOW тривалістю `≥ 50 000 нс` (`RESET_TIME`) скидає стан, наступний кадр починається з
+  першого піксела.
+- Останній біт кадру визначається окремо, бо після нього лінія може довго не змінювати
+  стан: `checkLastBit` на спадному фронті при `bitIndex === 23` і `update()`.
+- `update(cpuNanos)` повертає масив пікселів лише при змінах, інакше `null`.
 
-### 5. Малювання
-Колбек у `index.ts` проходить по рядках і стовпцях матриці й викликає
-`matrix.setPixel(row, col, { r, g, b })` з компонентами в діапазоні 0..1.
-Декодоване слово має порядок **GRB**: G у бітах 16–23, R у 8–15, B у 0–7.
+### Golden-тести
 
-### 6. Stop і Revert
-- **Stop**: вмикає Run і Revert, вимикає Stop, викликає `runner.stop()`.
-  Зупинка настає не одразу, а при наступному жорсткому виході з циклу
-  (після найближчого `await setTimeout(0)`).
-- **Revert**: підставляє `DEFAULT_CODE` у редактор і зберігає його в
-  `localStorage`.
+`test/fixtures/` містить HEX-файли, зібрані з `demo_sketches/*.ino` закріпленим тулчейном, і
+`golden.json`: хеші (префікс sha256) останнього кадру в моменти 100, 500, 1000 і 2000 мс
+симульованого часу та вивід Serial. `golden.test.ts` проганяє HEX у Node без браузера
+через `Simulation.step` кроками по 1 мс (крок входить у golden, бо перевірка кадру робиться
+раз на крок). Хеші записані самим рушієм, тому вони ловлять регресії, але не доводять
+правильність кадрів. Після свідомої зміни тулчейна чи декодера: `yarn golden:update`
+(потрібен `arduino-cli`), потім переглянути diff.
 
-### 7. Збереження коду
-Вміст редактора записується в `localStorage` лише при натисканні Run або
-Revert. Правки, які не запускали, після перезавантаження пропадають.
+## `packages/web`
+
+| Файл | Призначення |
+|---|---|
+| `index.html` | Каркас: `<wokwi-neopixel-matrix cols="50" rows="1">`, кнопки `#run-button`, `#stop-button` (спочатку disabled), `#revert-button`, `#status-label`, `.code-editor`, панелі `#compiler-output-text` і `#serial-output-text`. |
+| `vite.config.ts` | Dev-проксі `/api` на `API_PROXY_TARGET` або `http://127.0.0.1:3001`. |
+| `src/index.ts` | Створює Monaco (мова `cpp`, без мінімапи; воркер через Vite `?worker`), обробники Run/Stop/Revert, `executeProgram` створює `Simulation` і розпаковує GRB у `matrix.setPixel`. Кількість діодів = `matrix.cols * matrix.rows`. |
+| `src/compile.ts` | `buildHex(source)`: POST `{ sketch }` на `${VITE_API_URL ?? "/api"}/compile`. Мережеві помилки й не-2xx кидають `CompileError`, UI показує їх у панелі компілятора. Помилка компіляції приходить як 200 без `hex`, текст у `stderr`. |
+| `src/utils/editor-history.util.ts` | `EditorHistoryUtil` над `localStorage` (ключ `AVRJS8_EDITOR_HISTORY`). |
+| `src/index.css` | Розмітка сторінки. |
+
+Сценарії:
+- **Run**: код зберігається в `localStorage`, Run і Revert вимикаються, панель Serial
+  очищується, `buildHex`, вивід у панель компілятора; якщо є `hex`, вмикається Stop і
+  створюється та стартує `Simulation`; інакше кнопки повертаються.
+- **Stop**: `simulation.stop()`, вмикаються Run і Revert.
+- **Revert**: підставляє `DEFAULT_CODE` (скетч `rainbow_beat`) і зберігає його.
+- Код у `localStorage` пишеться лише при Run і Revert, невиконані правки втрачаються.
+
+## `packages/server`
+
+Fastify, запуск `yarn server` (`node main.ts`, Node виконує `.ts` напряму).
+
+| Файл | Призначення |
+|---|---|
+| `main.ts` | Читає конфіг, перевіряє тулчейн (`verifyToolchain`), слухає `HOST`/`PORT` (за замовчуванням `127.0.0.1:3001`). |
+| `app.ts` | `POST /api/compile` (`{ sketch }` → `{ stdout, stderr, hex }`), `GET /api/health`. Помилки: 400 (порожній `sketch`), 413 (завеликий), 503 з `Retry-After` (черга повна). |
+| `compiler.ts` | `Compiler`: `arduino-cli compile` через `execFile` (масив аргументів, без shell) у тимчасовому каталозі, який видаляється після збірки. Кеш за sha256(тулчейн + скетч), спільні збірки для однакових запитів, чистка тимчасових шляхів у виводі. Помилка компіляції — відповідь 200 з порожнім `hex`. |
+| `config.ts` | Закріплений тулчейн (`arduino:avr:uno`, ядро `arduino:avr@1.8.8`, FastLED 3.6.0) і ліміти з env: `MAX_SKETCH_BYTES`, `BUILD_TIMEOUT_MS`, `MAX_CONCURRENT_BUILDS`, `MAX_QUEUED_BUILDS`, `CACHE_ENTRIES`, `ARDUINO_CLI`. |
+| `semaphore.ts` | `BuildQueue` з обмеженою чергою, `QueueFullError`. |
+| `server.test.ts` | Тести черги, компілятора, HTTP-шару; тест із реальним `arduino-cli` пропускається, якщо CLI немає. |
+
+Версія FastLED закріплена, бо від неї залежать таймінги, під які налаштовано `MARGIN`.
+`Dockerfile` збирає той самий тулчейн; сервер не стартує при розбіжності версій.
 
 ## Жорстко закладені припущення
 
-Ці речі змінюються лише разом:
-- Пін даних — PORTD pin 3 (Arduino D3), тому в скетчах потрібно
-  `#define DATA_PIN 3`.
-- Кількість діодів визначається атрибутами `cols` і `rows` матриці в
-  `index.html` (зараз 50 × 1). У `DEFAULT_CODE` `NUM_LEDS` теж 50.
-- Порядок кольорів декодера — GRB, його розпаковує `index.ts`.
-- Частота CPU 16 МГц зашита і в `execute.ts` (`MHZ`), і в `index.ts`
-  (локальна константа `MHZ`).
+Ці речі змінюються лише разом (фаза 3 з `PLAN.md` їх прибирає):
+- Пін даних — PORTD pin 3 (Arduino D3), `DATA_PORT_D_BIT` у `simulation.ts`; у скетчах
+  потрібно `DATA_PIN 3`.
+- Кількість діодів — атрибути `cols` і `rows` матриці в `packages/web/index.html`
+  (зараз 50 × 1).
+- Порядок кольорів декодера — GRB, його розпаковує `packages/web/src/index.ts`.
+- Частота CPU 16 МГц: `CPU_HZ` в `execute.ts`.
 
 ## Відомі особливості
 
-- Умова `cpu.cycles % 500000 === 0` у `execute.ts` вимагає точного збігу.
-  Якщо інструкція займає кілька циклів і лічильник перестрибує кратне значення,
-  колбек у цей раз не викличеться. Це випливає з коду, запуском не
-  перевірялося.
-- `buildHex` не перевіряє `resp.ok`, а лише розбирає JSON відповіді.
-- Запуск вимагає мережі: компілятор Wokwi і шрифти завантажуються
-  із зовнішніх хостів.
+- Швидкість за замовчуванням не обмежена: анімація йде швидше за реальний час, якщо хост
+  достатньо швидкий. `setSpeed(1)` дає реальний час, але UI його поки не викликає.
+- Вивід Serial іде повільно (115200 бод, переривання вимкнені під час `FastLED.show()`),
+  тому рядок з `rainbow.ino` з'являється не одразу.
+- `stop()` діє лише на межі кроку (приблизно 31 мс симульованого часу).
+- Шрифт Roboto завантажується із Google Fonts; решта працює офлайн, окрім сервера
+  компіляції, який має працювати локально.

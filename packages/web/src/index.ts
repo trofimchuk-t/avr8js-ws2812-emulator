@@ -2,10 +2,8 @@ import "@wokwi/elements";
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { buildHex } from "./compile";
-import { AVRRunner } from "./execute";
-import { formatTime } from "./format-time";
+import { createSimulation, formatTime, type Simulation } from "@avr8js-ws2812/engine";
 import { NeopixelMatrixElement } from "@wokwi/elements";
-import { WS2812Controller } from "./ws2812";
 import "./index.css";
 import { EditorHistoryUtil } from "./utils/editor-history.util";
 
@@ -52,7 +50,7 @@ const editor = monaco.editor.create(document.querySelector<HTMLElement>(".code-e
 const matrix = document.querySelector<NeopixelMatrixElement & HTMLElement>("wokwi-neopixel-matrix");
 
 // Set up toolbar
-let runner: AVRRunner;
+let simulation: Simulation | null = null;
 
 const runButton = document.querySelector("#run-button");
 runButton.addEventListener("click", compileAndRun);
@@ -65,27 +63,16 @@ const compilerOutputText = document.querySelector("#compiler-output-text");
 const serialOutputText = document.querySelector("#serial-output-text");
 
 function executeProgram(hex: string) {
-  runner = new AVRRunner(hex);
-  const MHZ = 16000000;
-
-  const cpuNanos = () => Math.round((runner.cpu.cycles / MHZ) * 1000000000);
-  const matrixController = new WS2812Controller(matrix.cols * matrix.rows);
-
-  // Hook to PORTD register
-  runner.portD.addListener(() => {
-    matrixController.feedValue(runner.portD.pinState(3), cpuNanos());
-  });
-
-  // Serial port output support
-  runner.usart.onByteTransmit = (value: number) => {
-    serialOutputText.textContent += String.fromCharCode(value);
-  };
-
-  runner.execute((cpu) => {
-    const time = formatTime(cpu.cycles / MHZ);
-    statusLabel.textContent = "Simulation time: " + time;
-    const pixels = matrixController.update(cpuNanos());
-    if (pixels) {
+  simulation = createSimulation({
+    hex,
+    led: { count: matrix.cols * matrix.rows },
+    onSerial: (char) => {
+      serialOutputText.textContent += char;
+    },
+    onProgress: (nanos) => {
+      statusLabel.textContent = "Simulation time: " + formatTime(nanos / 1e9);
+    },
+    onFrame: (pixels) => {
       for (let row = 0; row < matrix.rows; row++) {
         for (let col = 0; col < matrix.cols; col++) {
           const value = pixels[row * matrix.cols + col];
@@ -96,8 +83,9 @@ function executeProgram(hex: string) {
           });
         }
       }
-    }
+    },
   });
+  simulation.start();
 }
 
 async function compileAndRun() {
@@ -133,9 +121,9 @@ function stopCode() {
   runButton.removeAttribute("disabled");
   revertButton.removeAttribute("disabled");
 
-  if (runner) {
-    runner.stop();
-    runner = null;
+  if (simulation) {
+    simulation.stop();
+    simulation = null;
   }
 }
 

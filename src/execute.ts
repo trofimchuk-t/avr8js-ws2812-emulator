@@ -15,6 +15,9 @@ import { loadHex } from "./intelhex";
 // ATmega328p params
 const FLASH = 0x8000;
 
+// Cycles between UI callbacks / event-loop yields
+const TICK_CYCLES = 500000;
+
 export class AVRRunner {
   readonly program = new Uint16Array(FLASH);
   readonly cpu: CPU;
@@ -40,10 +43,13 @@ export class AVRRunner {
 
   async execute(callback: (cpu: CPU) => void) {
     this.stopped = false;
+    // Instructions take several cycles, so compare against a threshold instead of using `%`.
+    let nextTick = this.cpu.cycles + TICK_CYCLES;
     for (;;) {
       avrInstruction(this.cpu);
       this.cpu.tick();
-      if (this.cpu.cycles % 500000 === 0) {
+      if (this.cpu.cycles >= nextTick) {
+        nextTick = this.cpu.cycles + TICK_CYCLES;
         callback(this.cpu);
         await new Promise((resolve) => setTimeout(resolve, 0));
         if (this.stopped) {

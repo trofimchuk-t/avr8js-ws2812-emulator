@@ -1,0 +1,38 @@
+{
+  "fadeTowardColor": {
+    "frames": {
+      "100": "cd1bf8391f00973f",
+      "500": "0b3691f4fc320e07",
+      "1000": "7c943b4fa4dcfb5e",
+      "2000": "8f3c5e8491dd0874"
+    },
+    "serial": ""
+  },
+  "pacifica": {
+    "frames": {
+      "100": "25103650a588e50f",
+      "500": "7c11622392100312",
+      "1000": "88e88c703d556c12",
+      "2000": "e017eb606aa7e775"
+    },
+    "serial": ""
+  },
+  "rainbow": {
+    "frames": {
+      "100": "e5cf2cb6a5faf98f",
+      "500": "6a41ca9a4b89a121",
+      "1000": "6f3c92b7fb2f4212",
+      "2000": "db57416fb9ea57b0"
+    },
+    "serial": "FastLED initialized.\r\n"
+  },
+  "rainbow_beat": {
+    "frames": {
+      "100": "b1055a0c5d056a79",
+      "500": "36f69b73bb94298e",
+      "1000": "daafb65cdaaf473f",
+      "2000": "eb8e69eb64c8a44d"
+    },
+    "serial": ""
+  }
+}

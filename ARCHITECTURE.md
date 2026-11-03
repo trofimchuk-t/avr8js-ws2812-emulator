@@ -19,7 +19,7 @@ WS2812/NeoPixel на елементі `<wokwi-neopixel-matrix>`. Користу�
 скетч у Monaco
    │  Run
    ▼
-compile.ts ──POST──► hexi.wokwi.com/build ──► { stdout, stderr, hex }
+compile.ts ──POST──► /api/compile (server/, arduino-cli) ──► { stdout, stderr, hex }
    │
    ▼
 execute.ts: AVRRunner(hex)
@@ -51,7 +51,7 @@ execute.ts: AVRRunner(hex)
 | Файл | Призначення |
 |---|---|
 | `index.ts` | Точка входу, склеює UI з рештою модулів. Створює редактор Monaco (мова `cpp`, без мінімапи) з початковим текстом із `EditorHistoryUtil` або з `DEFAULT_CODE` (скетч `rainbow_beat`, 50 діодів, `DATA_PIN 3`). Містить обробники Run, Stop і Revert, функцію `executeProgram`, яка запускає емуляцію й оновлює матрицю. |
-| `compile.ts` | `buildHex(source)` робить POST `{ sketch }` на `https://hexi.wokwi.com/build` і повертає JSON `{ stdout, stderr, hex }`. Статус HTTP не перевіряється. Помилка компіляції приходить як відповідь без `hex`, а текст помилки лежить у `stderr`. |
+| `compile.ts` | `buildHex(source)` робить POST `{ sketch }` на `${VITE_API_URL ?? "/api"}/compile` (власний сервер у `server/`) і повертає JSON `{ stdout, stderr, hex }`. Мережеві помилки й не-2xx статуси кидають `CompileError`. Помилка компіляції приходить як відповідь без `hex`, а текст помилки лежить у `stderr`. |
 | `intelhex.ts` | `loadHex(source, target)` розбирає Intel HEX. Обробляє лише записи даних (тип `00`), решту ігнорує. Байти пише за адресою запису в `Uint8Array`. |
 | `execute.ts` | Клас `AVRRunner`. Flash — `Uint16Array(0x8000)`. Створює `CPU`, `AVRTimer` (timer0), `AVRIOPort` для B/C/D і `AVRUSART` (USART0), тактова частота 16 МГц. `execute(callback)` виконує інструкції в циклі. Коли `cpu.cycles % 500000 === 0`, викликає колбек і робить `await setTimeout(0)`. Тільки тут перевіряється прапорець `stopped`. `stop()` лише виставляє цей прапорець. |
 | `ws2812.ts` | Клас `WS2812Controller(numPixels)`. Декодує протокол WS2812 з переходів піна, див. нижче. |

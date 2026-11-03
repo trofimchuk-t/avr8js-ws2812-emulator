@@ -15,15 +15,18 @@ A browser-only demo that runs Arduino sketches using FastLED on a simulated ATme
 - `yarn typecheck`: `tsc` (no emit)
 - `yarn lint` / `yarn lint:fix`: ESLint (flat config in `eslint.config.js`, typescript-eslint recommended)
 - `yarn format` / `yarn format:check`: Prettier (`*.md` is ignored)
-- `yarn check`: typecheck + lint + format check
+- `yarn server`: compile server on http://127.0.0.1:3001 (needs `arduino-cli`, see README)
+- `yarn test`: Vitest
+- `yarn check`: typecheck + lint + format check + tests
 
-The repo has no build script or tests. Vite transpiles `src/*.ts` on the fly and does not type-check, so run `yarn check`. TypeScript is pinned to 6.0.x because typescript-eslint supports only TypeScript < 6.1.
+`yarn test` runs Vitest (decoder tests in `src/`, server tests in `server/`; the real-`arduino-cli` test is skipped when the CLI is missing). Vite transpiles `src/*.ts` on the fly and does not type-check, so run `yarn check`. TypeScript is pinned to 6.0.x because typescript-eslint supports only TypeScript < 6.1.
 
 ## Architecture
 
 Pipeline: **sketch source → remote compile → Intel HEX → AVR emulation → pin-edge decoding → pixel rendering**
 
-- `src/compile.ts`: POSTs the sketch to Wokwi's hosted compiler (`https://hexi.wokwi.com/build`). Compilation needs network access, and the compiler supplies FastLED. Nothing is compiled locally.
+- `src/compile.ts`: POSTs the sketch to `${VITE_API_URL ?? "/api"}/compile`. In dev, Vite proxies `/api` to the compile server (`vite.config.ts`, `API_PROXY_TARGET` overrides the target). It throws `CompileError` for network and HTTP errors; the UI shows them in the compiler-output panel.
+- `server/` (Fastify, run with `yarn server`, Node runs the `.ts` directly so use erasable syntax and `.ts` import extensions): `POST /api/compile` takes `{ sketch }` and returns `{ stdout, stderr, hex }`. `compiler.ts` runs `arduino-cli compile` through `execFile` in a temp directory, caches by sha256(toolchain + sketch), shares identical in-flight builds, and queues builds (`semaphore.ts`). Compiler errors are a 200 response with an empty `hex`. The toolchain is pinned in `server/config.ts` (FastLED 3.6.0, `arduino:avr` 1.8.8) and checked at startup, because FastLED versions change the pulse timings that `MARGIN` is tuned for; FastLED 3.10.x does not compile the demo sketches. The `Dockerfile` builds the same toolchain.
 - `src/intelhex.ts`: minimal Intel HEX loader that writes into the program flash buffer.
 - `src/execute.ts` (`AVRRunner`): wires up the CPU, timer0, ports B/C/D, and USART0 at 16 MHz. `execute()` is a tight instruction loop that every 500,000 cycles calls the UI callback and yields to the event loop with `setTimeout(0)`. That yield is the only point where `stop()` takes effect.
 - `src/ws2812.ts` (`WS2812Controller`): decodes the WS2812 bitstream from pin transitions timestamped in simulated nanoseconds (`cpu.cycles / 16 MHz`). It classifies HIGH/LOW pulse widths against the `ZERO_*`/`ONE_*` constants with a `MARGIN` tolerance tuned for FastLED's timing, assembles 24-bit pixels, and resets on a LOW of 50 µs or more. The last bit of a frame is inferred (`checkLastBit` / `update`) because the trailing LOW may never be followed by another edge.

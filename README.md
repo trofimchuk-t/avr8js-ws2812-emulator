@@ -15,11 +15,23 @@ First, install the project dependencies by running:
 yarn install
 ```
 
-To start the project, run the following command:
+Sketches are compiled by a local server that wraps [arduino-cli](https://arduino.github.io/arduino-cli/). Install the pinned toolchain once (the server refuses to start if the versions differ, see `server/config.ts`):
 
 ```sh
+brew install arduino-cli   # or see the arduino-cli install docs
+arduino-cli core update-index
+arduino-cli core install arduino:avr@1.8.8
+arduino-cli lib install FastLED@3.6.0
+```
+
+Then start the compile server and the web app in two terminals:
+
+```sh
+yarn server   # http://127.0.0.1:3001
 yarn start
 ```
+
+Alternatively, build the `Dockerfile`, which contains the same toolchain.
 
 It will run a local development server, and you can access the project at [http://localhost:3000/](http://localhost:3000/) (the default port is 3000 unless otherwise configured).
 

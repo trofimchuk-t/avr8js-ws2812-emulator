@@ -117,11 +117,12 @@ async function compileAndRun() {
       executeProgram(result.hex);
     } else {
       runButton.removeAttribute("disabled");
+      revertButton.removeAttribute("disabled");
     }
   } catch (err) {
     runButton.removeAttribute("disabled");
     revertButton.removeAttribute("disabled");
-    alert("Failed: " + err);
+    compilerOutputText.textContent = err instanceof Error ? err.message : String(err);
   } finally {
     statusLabel.textContent = "";
   }

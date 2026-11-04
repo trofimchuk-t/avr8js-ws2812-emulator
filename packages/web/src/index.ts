@@ -2,7 +2,13 @@ import "@wokwi/elements";
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { buildHex } from "./compile";
-import { createSimulation, formatTime, type Simulation } from "@avr8js-ws2812/engine";
+import {
+  createSimulation,
+  formatTime,
+  parseSketchConfig,
+  type LedConfig,
+  type Simulation,
+} from "@avr8js-ws2812/engine";
 import { NeopixelMatrixElement } from "@wokwi/elements";
 import "./index.css";
 import { EditorHistoryUtil } from "./utils/editor-history.util";
@@ -62,10 +68,18 @@ const statusLabel = document.querySelector("#status-label");
 const compilerOutputText = document.querySelector("#compiler-output-text");
 const serialOutputText = document.querySelector("#serial-output-text");
 
-function executeProgram(hex: string) {
+/** Sizes the matrix element from the config (the single source of truth for the LED count). */
+function applyLayout(led: LedConfig) {
+  const { layout } = led;
+  matrix.cols = layout.kind === "matrix" ? layout.cols : led.count;
+  matrix.rows = layout.kind === "matrix" ? layout.rows : 1;
+}
+
+function executeProgram(hex: string, led: LedConfig) {
+  applyLayout(led);
   simulation = createSimulation({
     hex,
-    led: { count: matrix.cols * matrix.rows },
+    led,
     onSerial: (char) => {
       serialOutputText.textContent += char;
     },
@@ -97,12 +111,16 @@ async function compileAndRun() {
 
   try {
     statusLabel.textContent = "Compiling...";
-    const result = await buildHex(editor.getValue());
+    const source = editor.getValue();
+    // Pin, LED count and color order come from the sketch text.
+    const { config, warnings } = parseSketchConfig(source);
+    const result = await buildHex(source);
     compilerOutputText.textContent = result.stderr || result.stdout;
+    for (const warning of warnings) compilerOutputText.textContent += `\nWarning: ${warning}`;
     if (result.hex) {
-      compilerOutputText.textContent += "\nProgram running...";
+      compilerOutputText.textContent += `\nProgram running (${config.count} LEDs on D${config.dataPin}, ${config.colorOrder})...`;
       stopButton.removeAttribute("disabled");
-      executeProgram(result.hex);
+      executeProgram(result.hex, config);
     } else {
       runButton.removeAttribute("disabled");
       revertButton.removeAttribute("disabled");

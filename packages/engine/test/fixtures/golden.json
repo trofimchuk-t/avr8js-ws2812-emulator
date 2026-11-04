@@ -1,5 +1,14 @@
 {
   "fadeTowardColor": {
+    "led": {
+      "count": 50,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 3,
+      "colorOrder": "GRB",
+      "chip": "WS2812B"
+    },
     "frames": {
       "100": "cd1bf8391f00973f",
       "500": "0b3691f4fc320e07",
@@ -9,6 +18,15 @@
     "serial": ""
   },
   "pacifica": {
+    "led": {
+      "count": 50,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 3,
+      "colorOrder": "GRB",
+      "chip": "WS2812B"
+    },
     "frames": {
       "100": "25103650a588e50f",
       "500": "7c11622392100312",
@@ -17,7 +35,34 @@
     },
     "serial": ""
   },
+  "pin9_rgb": {
+    "led": {
+      "count": 30,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 9,
+      "colorOrder": "RGB",
+      "chip": "WS2812B"
+    },
+    "frames": {
+      "100": "3aa885a05a3891f5",
+      "500": "3aa885a05a3891f5",
+      "1000": "3aa885a05a3891f5",
+      "2000": "3aa885a05a3891f5"
+    },
+    "serial": "FastLED initialized.\r\n"
+  },
   "rainbow": {
+    "led": {
+      "count": 50,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 3,
+      "colorOrder": "GRB",
+      "chip": "WS2812B"
+    },
     "frames": {
       "100": "e5cf2cb6a5faf98f",
       "500": "6a41ca9a4b89a121",
@@ -27,6 +72,15 @@
     "serial": "FastLED initialized.\r\n"
   },
   "rainbow_beat": {
+    "led": {
+      "count": 50,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 3,
+      "colorOrder": "GRB",
+      "chip": "WS2812B"
+    },
     "frames": {
       "100": "b1055a0c5d056a79",
       "500": "36f69b73bb94298e",

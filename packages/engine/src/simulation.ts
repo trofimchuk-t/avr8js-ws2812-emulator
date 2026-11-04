@@ -1,24 +1,18 @@
 import { AVRRunner, CPU_HZ } from "./execute.ts";
 import { WS2812Controller } from "./ws2812.ts";
-
-/** Arduino D3 = PORTD bit 3. Becomes configurable with `LedConfig.dataPin` in phase 3. */
-const DATA_PORT_D_BIT = 3;
+import { wireToGrb, type LedConfig } from "./led-config.ts";
+import { arduinoPinToPort } from "./pins.ts";
 
 /** Cycles between frame checks, progress callbacks and event-loop yields (about 31 ms). */
 const TICK_CYCLES = 500_000;
-
-export interface LedConfig {
-  /** Number of LEDs in the strip or matrix. */
-  count: number;
-}
 
 export interface SimulationOptions {
   /** Intel HEX program for an ATmega328p. */
   hex: string;
   led: LedConfig;
   /**
-   * Called when the decoded LED state changed. Each pixel is a 24-bit GRB word: G in bits 16–23,
-   * R in bits 8–15, B in bits 0–7. The array is a copy that the caller may keep.
+   * Called when the decoded LED state changed. Each pixel is a 24-bit GRB word whatever the
+   * configured `colorOrder`: G in bits 16–23, R in bits 8–15, B in bits 0–7. The array is a copy that the caller may keep.
    * `nanos` is the simulated time.
    */
   onFrame?: (pixels: Uint32Array, nanos: number) => void;
@@ -76,12 +70,17 @@ class SimulationImpl implements Simulation {
 
   constructor(options: SimulationOptions) {
     this.options = options;
+    const { count } = options.led;
+    if (!Number.isInteger(count) || count < 1)
+      throw new RangeError("LED count must be a positive integer");
+    const { port, bit } = arduinoPinToPort(options.led.dataPin);
     const runner = new AVRRunner(options.hex);
     this.runner = runner;
-    this.controller = new WS2812Controller(options.led.count);
+    this.controller = new WS2812Controller(count);
 
-    runner.portD.addListener(() => {
-      this.controller.feedValue(runner.portD.pinState(DATA_PORT_D_BIT), this.nanos);
+    const ioPort = port === "B" ? runner.portB : runner.portD;
+    ioPort.addListener(() => {
+      this.controller.feedValue(ioPort.pinState(bit), this.nanos);
     });
     runner.usart.onByteTransmit = (value: number) => {
       options.onSerial?.(String.fromCharCode(value));
@@ -131,7 +130,10 @@ class SimulationImpl implements Simulation {
 
   private emitFrame() {
     const pixels = this.controller.update(this.nanos);
-    if (pixels) this.options.onFrame?.(pixels.slice(), this.nanos);
+    if (!pixels) return;
+    const order = this.options.led.colorOrder;
+    const copy = order === "GRB" ? pixels.slice() : pixels.map((word) => wireToGrb(word, order));
+    this.options.onFrame?.(copy, this.nanos);
   }
 
   private async loop(id: number) {

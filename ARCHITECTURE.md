@@ -56,7 +56,10 @@ TypeScript, щоб Node міг запускати файли напряму (п�
 | Файл | Призначення |
 |---|---|
 | `src/index.ts` | Публічні експорти: `createSimulation`, `cyclesToNanos`, типи, `AVRRunner`, `WS2812Controller`, `loadHex`, `formatTime`. |
-| `src/simulation.ts` | `createSimulation(options): Simulation`. Створює `AVRRunner` і `WS2812Controller(led.count)`, підписується на PORTD (пін 3, `DATA_PORT_D_BIT`) і на `usart.onByteTransmit`, веде цикл виконання. |
+| `src/simulation.ts` | `createSimulation(options): Simulation`. Створює `AVRRunner` і `WS2812Controller(led.count)`, підписується на порт піна `led.dataPin` (PORTB або PORTD) і на `usart.onByteTransmit`, переводить слова з порядку `led.colorOrder` у GRB, веде цикл виконання. |
+| `src/led-config.ts` | `LedConfig`, `DEFAULT_LED_CONFIG`, `createLedConfig`, `ColorOrder`, `wireToGrb`. |
+| `src/pins.ts` | `arduinoPinToPort(pin)`: D2..D7 → PORTD біти 2..7, D8..D13 → PORTB біти 0..5. |
+| `src/sketch-config.ts` | `parseSketchConfig(source)` → `{ config, found, warnings }`: читає `FastLED.addLeds<CHIP, PIN[, ORDER]>(leds, N)`, розкриваючи `#define` і `const` та цілочисельні вирази. Те, що не вдалося визначити, береться з `DEFAULT_LED_CONFIG` із попередженням. |
 | `src/execute.ts` | `AVRRunner`: flash `Uint16Array(0x8000)`, `CPU`, `AVRTimer` (timer0), `AVRIOPort` B/C/D, `AVRUSART` (USART0), `CPU_HZ = 16e6`. Власного циклу немає: лише `step()` (одна інструкція) і `runUntil(cycles)`. |
 | `src/ws2812.ts` | `WS2812Controller(numPixels)`, декодер протоколу, див. нижче. |
 | `src/intelhex.ts` | `loadHex(source, target)`: розбирає лише записи даних (тип `00`). |
@@ -67,12 +70,12 @@ TypeScript, щоб Node міг запускати файли напряму (п�
 ### API `Simulation`
 
 ```ts
-createSimulation({ hex, led: { count }, onFrame, onSerial, onProgress }): Simulation
+createSimulation({ hex, led: LedConfig, onFrame, onSerial, onProgress }): Simulation
 // Simulation: state, nanos, start(), pause(), stop(), step(cycles = 1), setSpeed(x)
 ```
 
-- `onFrame(pixels, nanos)`: копія масиву `Uint32Array`, слова **GRB** (G у бітах 16–23,
-  R у 8–15, B у 0–7). Викликається лише коли декодер має зміни.
+- `onFrame(pixels, nanos)`: копія масиву `Uint32Array`, слова **GRB** незалежно від
+  `led.colorOrder` (G у бітах 16–23, R у 8–15, B у 0–7). Викликається лише коли декодер має зміни.
 - `onSerial(char)`: кожен байт USART як односимвольний рядок.
 - `onProgress(nanos)`: приблизно раз на 31 мс симульованого часу.
 - `start()` запускає або поновлює після `pause()`. `pause()` зупиняє на найближчому
@@ -149,12 +152,12 @@ Fastify, запуск `yarn server` (`node main.ts`, Node виконує `.ts` �
 
 ## Жорстко закладені припущення
 
-Ці речі змінюються лише разом (фаза 3 з `PLAN.md` їх прибирає):
-- Пін даних — PORTD pin 3 (Arduino D3), `DATA_PORT_D_BIT` у `simulation.ts`; у скетчах
-  потрібно `DATA_PIN 3`.
-- Кількість діодів — атрибути `cols` і `rows` матриці в `packages/web/index.html`
-  (зараз 50 × 1).
-- Порядок кольорів декодера — GRB, його розпаковує `packages/web/src/index.ts`.
+Конфігурація діодів (пін, кількість, порядок кольорів) більше не зашита: застосунок
+розбирає скетч через `parseSketchConfig` при кожному Run і передає `LedConfig` у
+`createSimulation`; матриця отримує розміри з нього (`applyLayout` у `packages/web/src/index.ts`).
+Лишається закладеним:
+- Підтримані піни D2..D13 (ATmega328p / Uno), тип мікросхеми лише `WS2812B`.
+- Розкладка з розбору скетча завжди `strip` (`cols = count`, `rows = 1`).
 - Частота CPU 16 МГц: `CPU_HZ` в `execute.ts`.
 
 ## Відомі особливості

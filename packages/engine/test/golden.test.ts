@@ -12,7 +12,7 @@ describe("golden frames (HEX fixtures run headless in Node)", () => {
   for (const [name, expected] of Object.entries(golden)) {
     it(name, () => {
       const hex = readFileSync(new URL(`${name}.hex`, fixtures), "utf8");
-      expect(runGolden(hex)).toEqual(expected);
+      expect(runGolden(hex, expected.led)).toEqual(expected);
     });
   }
 

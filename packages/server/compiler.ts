@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { CORE, FQBN, LIBRARIES, TOOLCHAIN_ID, type ServerConfig } from "./config.ts";
 import { BuildQueue } from "./semaphore.ts";
+import type { ValidatedSketch } from "./sketch-files.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -38,11 +39,19 @@ export class Compiler {
     this.queue = new BuildQueue(config.maxConcurrentBuilds, config.maxQueuedBuilds);
   }
 
-  static cacheKey(sketch: string) {
-    return createHash("sha256").update(TOOLCHAIN_ID).update("\0").update(sketch).digest("hex");
+  /** Order-independent, and length-prefixed so that file boundaries cannot be forged. */
+  static cacheKey(sketch: ValidatedSketch) {
+    const hash = createHash("sha256").update(TOOLCHAIN_ID).update("\0");
+    const field = (text: string) => hash.update(`${Buffer.byteLength(text)}:`).update(text);
+    field(sketch.main);
+    for (const file of [...sketch.files].sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      field(file.name);
+      field(file.content);
+    }
+    return hash.digest("hex");
   }
 
-  compile(sketch: string): Promise<CompileResult> {
+  compile(sketch: ValidatedSketch): Promise<CompileResult> {
     const key = Compiler.cacheKey(sketch);
     const cached = this.cache.get(key);
     if (cached) {
@@ -97,7 +106,7 @@ export class Compiler {
     }
   }
 
-  private async build(sketch: string): Promise<CompileResult> {
+  private async build(sketch: ValidatedSketch): Promise<CompileResult> {
     // Sketch folder and .ino file must share a name; the random id is also unguessable.
     const id = "sketch_" + randomUUID().replace(/-/g, "");
     const root = join(tmpdir(), "ws2812-build-" + id);
@@ -108,7 +117,12 @@ export class Compiler {
     try {
       await mkdir(dir, { recursive: true });
       real = await realpath(root);
-      await writeFile(join(dir, id + ".ino"), sketch);
+      // arduino-cli wants the main .ino to share the folder's name; the other files keep theirs.
+      // Names were validated as flat, so none of them can leave `dir`.
+      for (const file of sketch.files) {
+        const target = file.name === sketch.main ? id + ".ino" : file.name;
+        await writeFile(join(dir, target), file.content);
+      }
       let stdout = "";
       let stderr = "";
       try {
@@ -123,15 +137,15 @@ export class Compiler {
         stdout = e.stdout ?? "";
         stderr = e.killed ? "Build timed out" : (e.stderr ?? e.message);
         return {
-          stdout: clean(stdout, [root, real], id, true),
-          stderr: clean(stderr, [root, real], id),
+          stdout: clean(stdout, [root, real], id, sketch, true),
+          stderr: clean(stderr, [root, real], id, sketch),
           hex: "",
         };
       }
       const hex = await readFile(join(out, id + ".ino.hex"), "utf8");
       return {
-        stdout: clean(stdout, [root, real], id, true),
-        stderr: clean(stderr, [root, real], id),
+        stdout: clean(stdout, [root, real], id, sketch, true),
+        stderr: clean(stderr, [root, real], id, sketch),
         hex,
       };
     } finally {
@@ -141,20 +155,29 @@ export class Compiler {
 }
 
 /**
- * Hides temp paths and the generated sketch name. With `summary`, keeps only the
- * size lines, since the rest of stdout lists local toolchain paths.
+ * Hides temp paths and the generated sketch name, and maps files back to the user's names.
+ * With `summary`, keeps only the size lines, since the rest of stdout lists local toolchain paths.
  */
-function clean(text: string, roots: string[], id: string, summary = false) {
+function clean(
+  text: string,
+  roots: string[],
+  id: string,
+  sketch: ValidatedSketch,
+  summary = false,
+) {
   let out = text;
   // The resolved path can contain the plain one (/private/var/... vs /var/...), so replace it first.
   roots = [...roots].sort((a, b) => b.length - a.length);
   for (const root of roots) {
-    out = out.split(join(root, id, id + ".ino")).join("sketch.ino");
+    for (const file of sketch.files) {
+      const built = file.name === sketch.main ? id + ".ino" : file.name;
+      out = out.split(join(root, id, built)).join(file.name);
+    }
   }
   for (const root of roots) {
     out = out.split(root).join("<tmp>");
   }
-  out = out.split(id).join("sketch");
+  out = out.split(id).join(sketch.main.replace(/\.ino$/, ""));
   if (summary) {
     out = out
       .split("\n")

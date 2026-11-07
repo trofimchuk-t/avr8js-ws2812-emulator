@@ -2,12 +2,11 @@ import {
   createLedConfig,
   DEFAULT_LED_CONFIG,
   isColorOrder,
+  MAX_LEDS,
   type ColorOrder,
   type LedConfig,
 } from "./led-config.ts";
 import { MAX_DATA_PIN, MIN_DATA_PIN } from "./pins.ts";
-
-const MAX_LEDS = 4096;
 
 /** One-wire chips the decoder understands, with FastLED's default color order for each. */
 const CHIP_DEFAULT_ORDER: Record<string, ColorOrder> = {

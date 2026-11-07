@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@avr8js-ws2812/engine": "*",
     "fastify": "^5.12.8"
   },
   "scripts": {

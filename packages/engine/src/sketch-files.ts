@@ -28,6 +28,10 @@ export class SketchFilesError extends Error {
 /** Flat names only: no directories, no leading dot, a known extension. */
 const FILE_NAME = /^[A-Za-z0-9_-]+\.(ino|h|hpp|c|cpp)$/;
 
+export function isValidSketchFileName(name: string) {
+  return FILE_NAME.test(name);
+}
+
 /**
  * Checks the files of a sketch and picks the main one. `main` may be omitted when there
  * is exactly one `.ino` file.
@@ -58,7 +62,7 @@ export function validateSketchFiles(
     const key = file.name.toLowerCase();
     if (seen.has(key)) throw new SketchFilesError(`Duplicate file name "${file.name}"`);
     seen.add(key);
-    bytes += Buffer.byteLength(file.content);
+    bytes += new TextEncoder().encode(file.content).length;
   }
   if (bytes > limits.maxSketchBytes) {
     throw new SketchFilesError(`Sketch is larger than ${limits.maxSketchBytes} bytes`, 413);

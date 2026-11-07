@@ -1,3 +1,7 @@
+import { MAX_DATA_PIN, MIN_DATA_PIN } from "./pins.ts";
+
+export const MAX_LEDS = 4096;
+
 export const COLOR_ORDERS = ["RGB", "RBG", "GRB", "GBR", "BRG", "BGR"] as const;
 /** Order in which the three color bytes are sent on the wire (FastLED's `EOrder`). */
 export type ColorOrder = (typeof COLOR_ORDERS)[number];
@@ -38,4 +42,44 @@ export function wireToGrb(word: number, order: ColorOrder): number {
   const channel = { R: 0, G: 0, B: 0 };
   for (let i = 0; i < 3; i++) channel[order[i] as "R" | "G" | "B"] = wire[i];
   return (channel.G << 16) | (channel.R << 8) | channel.B;
+}
+
+/**
+ * Checks untrusted input (for example a request body) and returns a clean `LedConfig`.
+ * Throws a `RangeError` with a readable message for the first problem found.
+ */
+export function validateLedConfig(value: unknown): LedConfig {
+  const v = value as Partial<LedConfig> | null;
+  if (typeof v !== "object" || v === null) throw new RangeError("`led` must be an object");
+  const { count, dataPin, colorOrder, layout } = v;
+  if (!Number.isInteger(count) || count < 1 || count > MAX_LEDS) {
+    throw new RangeError(`LED count must be an integer from 1 to ${MAX_LEDS}`);
+  }
+  if (!Number.isInteger(dataPin) || dataPin < MIN_DATA_PIN || dataPin > MAX_DATA_PIN) {
+    throw new RangeError(`Data pin must be an integer from D${MIN_DATA_PIN} to D${MAX_DATA_PIN}`);
+  }
+  if (typeof colorOrder !== "string" || !isColorOrder(colorOrder)) {
+    throw new RangeError(`Color order must be one of ${COLOR_ORDERS.join(", ")}`);
+  }
+  if (v.chip !== "WS2812B") throw new RangeError("Chip must be WS2812B");
+  if (layout?.kind === "matrix") {
+    const { cols, rows, serpentine } = layout;
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1) {
+      throw new RangeError("Matrix columns and rows must be positive integers");
+    }
+    if (cols * rows !== count)
+      throw new RangeError("Matrix columns × rows must equal the LED count");
+    return {
+      count,
+      dataPin,
+      colorOrder,
+      chip: "WS2812B",
+      layout:
+        serpentine === undefined
+          ? { kind: "matrix", cols, rows }
+          : { kind: "matrix", cols, rows, serpentine: !!serpentine },
+    };
+  }
+  if (layout?.kind !== "strip") throw new RangeError("Layout must be a strip or a matrix");
+  return { count, dataPin, colorOrder, chip: "WS2812B", layout: { kind: "strip" } };
 }

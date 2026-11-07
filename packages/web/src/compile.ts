@@ -1,4 +1,5 @@
-const baseUrl: string = import.meta.env.VITE_API_URL ?? "/api";
+import type { SketchFile } from "@avr8js-ws2812/engine";
+import { ApiError, request } from "./lib/api";
 
 export interface IHexiResult {
   stdout: string;
@@ -8,28 +9,11 @@ export interface IHexiResult {
 
 export class CompileError extends Error {}
 
-export async function buildHex(source: string) {
-  let resp: Response;
+export async function buildHex(files: SketchFile[], main: string) {
   try {
-    resp = await fetch(baseUrl + "/compile", {
-      method: "POST",
-      cache: "no-cache",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ sketch: source }),
-    });
-  } catch {
-    throw new CompileError("Cannot reach the compile server. Is it running (yarn server)?");
+    return await request<IHexiResult>("/compile", { method: "POST", json: { files, main } });
+  } catch (err) {
+    if (err instanceof ApiError) throw new CompileError(err.message);
+    throw err;
   }
-  if (!resp.ok) {
-    let reason = resp.statusText;
-    try {
-      reason = (await resp.json()).error ?? reason;
-    } catch {
-      // Not JSON (for example a proxy error page); keep the status text.
-    }
-    throw new CompileError(`Compile server error (${resp.status}): ${reason}`);
-  }
-  return (await resp.json()) as IHexiResult;
 }

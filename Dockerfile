@@ -28,9 +28,12 @@ COPY --chown=builder packages/engine/package.json ./packages/engine/
 COPY --chown=builder packages/web/package.json ./packages/web/
 COPY --chown=builder packages/server/package.json ./packages/server/
 RUN corepack enable && yarn install --frozen-lockfile --production
+COPY --chown=builder packages/engine ./packages/engine
 COPY --chown=builder packages/server ./packages/server
 
-ENV HOST=0.0.0.0 PORT=3001
+# Projects (SQLite + sketch files) live here; mount a volume to keep them.
+ENV HOST=0.0.0.0 PORT=3001 DATA_DIR=/home/builder/data
+VOLUME /home/builder/data
 EXPOSE 3001
 WORKDIR /home/builder/app/packages/server
 CMD ["node", "main.ts"]

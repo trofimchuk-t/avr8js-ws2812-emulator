@@ -3,7 +3,7 @@
 This project demonstrates the use of [avr8js](https://github.com/wokwi/avr8js) library to simulate NeoPixels (ws2812 LEDs) with the [FastLED](https://github.com/FastLED/FastLED) library. You can paste your own Arduino sketch into the editor, and see how it would run on a real AVR microcontroller.
 
 You can find a lot of demo code in the [FastLED-Demos](https://github.com/atuline/FastLED-Demos/tree/master) repository.  
-Ready-made sketches can be found in the [demo sketches](./demo_sketches) folder (just copy and paste into code editor and hit `Run` button).
+Ready-made sketches can be found in the [demo sketches](./demo_sketches) folder; they are also offered as templates when you create a project. Projects (several files each: `.ino`, `.h`, `.hpp`, `.c`, `.cpp`) are stored by the server in `DATA_DIR` (default `./data`: a SQLite database plus the sketch files) and can be imported and exported as `.ino` or `.zip`.
 
 ## Getting Started
 

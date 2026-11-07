@@ -1,10 +1,12 @@
 import Fastify from "fastify";
 import { Compiler } from "./compiler.ts";
 import type { ServerConfig } from "./config.ts";
+import { registerProjectRoutes } from "./projects/routes.ts";
+import type { ProjectService } from "./projects/service.ts";
 import { QueueFullError } from "./semaphore.ts";
-import { SketchFilesError, validateSketchFiles } from "./sketch-files.ts";
+import { SketchFilesError, validateSketchFiles } from "@avr8js-ws2812/engine";
 
-export function buildApp(config: ServerConfig, compiler = new Compiler(config)) {
+export function buildApp(config: ServerConfig, compiler: Compiler, projects: ProjectService) {
   // bodyLimit leaves room for JSON escaping around maxSketchBytes of source plus file names.
   const app = Fastify({
     logger: process.env.NODE_ENV !== "test",
@@ -41,6 +43,8 @@ export function buildApp(config: ServerConfig, compiler = new Compiler(config)) 
       throw err;
     }
   });
+
+  registerProjectRoutes(app, projects);
 
   app.get("/api/health", async () => ({ ok: true }));
 

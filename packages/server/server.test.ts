@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { buildApp } from "./app.ts";
 import { Compiler, type Exec } from "./compiler.ts";
 import { loadConfig } from "./config.ts";
+import { memoryProjects } from "./projects/test-helpers.ts";
 import { BuildQueue, QueueFullError } from "./semaphore.ts";
-import { validateSketchFiles, type SketchFile } from "./sketch-files.ts";
+import { validateSketchFiles, type SketchFile } from "@avr8js-ws2812/engine";
 
 const config = { ...loadConfig(), maxSketchBytes: 1000, maxSketchFiles: 4 };
 
@@ -130,7 +131,7 @@ describe("Compiler", () => {
 });
 
 describe("POST /api/compile", () => {
-  const app = buildApp(config, new Compiler(config, fakeExec()));
+  const app = buildApp(config, new Compiler(config, fakeExec()), memoryProjects());
   const post = (payload: unknown) =>
     app.inject({ method: "POST", url: "/api/compile", payload: payload as object });
 

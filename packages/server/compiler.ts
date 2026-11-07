@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { CORE, FQBN, LIBRARIES, TOOLCHAIN_ID, type ServerConfig } from "./config.ts";
 import { BuildQueue } from "./semaphore.ts";
-import type { ValidatedSketch } from "./sketch-files.ts";
+import type { ValidatedSketch } from "@avr8js-ws2812/engine";
 
 const execFileAsync = promisify(execFile);
 

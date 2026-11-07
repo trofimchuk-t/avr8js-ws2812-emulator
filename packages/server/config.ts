@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 /** Pinned toolchain. Changing any of these changes timings, so the cache key includes them. */
 export const FQBN = "arduino:avr:uno";
 export const CORE = { id: "arduino:avr", version: "1.8.8" };
@@ -19,6 +21,9 @@ export interface ServerConfig {
   /** Builds waiting beyond the running ones; more than this gets HTTP 503. */
   maxQueuedBuilds: number;
   cacheEntries: number;
+  /** Holds the SQLite file and the sketch files. */
+  dataDir: string;
+  ownerId: string;
 }
 
 function int(name: string, fallback: number) {
@@ -35,5 +40,8 @@ export function loadConfig(): ServerConfig {
     maxConcurrentBuilds: int("MAX_CONCURRENT_BUILDS", 2),
     maxQueuedBuilds: int("MAX_QUEUED_BUILDS", 8),
     cacheEntries: int("CACHE_ENTRIES", 200),
+    dataDir: resolve(process.env.DATA_DIR ?? "data"),
+    // Authentication is deferred: every project belongs to this one user.
+    ownerId: "local",
   };
 }

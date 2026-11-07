@@ -6,10 +6,16 @@
   "dependencies": {
     "@avr8js-ws2812/engine": "*",
     "@wokwi/elements": "^1.9.2",
+    "fflate": "^0.8.3",
     "lit-html": "^3.3.3",
-    "monaco-editor": "0.57.0"
+    "monaco-editor": "0.57.0",
+    "react": "^19",
+    "react-dom": "^19"
   },
   "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.2.1",
     "vite": "^8.3.5"
   },
   "scripts": {

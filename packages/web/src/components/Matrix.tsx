@@ -1,6 +1,6 @@
 import "@wokwi/elements";
 import type { NeopixelMatrixElement } from "@wokwi/elements";
-import { useImperativeHandle, useRef, type Ref } from "react";
+import { useImperativeHandle, useLayoutEffect, useRef, useState, type Ref } from "react";
 
 export interface MatrixHandle {
   /** `pixels` are GRB words as delivered by `Simulation.onFrame`. */
@@ -8,19 +8,54 @@ export interface MatrixHandle {
   clear(): void;
 }
 
+export type Zoom = "fit" | 1 | 2;
+
+/** Upper bound for "fit", so a handful of LEDs does not fill the whole panel. */
+const MAX_FIT_SCALE = 3;
+
 export function Matrix({
   cols,
   rows,
+  zoom,
   ref,
 }: {
   cols: number;
   rows: number;
+  zoom: Zoom;
   ref?: Ref<MatrixHandle>;
 }) {
   const element = useRef<(NeopixelMatrixElement & HTMLElement) | null>(null);
+  const stage = useRef<HTMLDivElement>(null);
   // Frames can arrive between renders, so they read the latest size from here.
   const size = useRef({ cols, rows });
   size.current = { cols, rows };
+
+  // The element draws an SVG with a fixed size in mm, so scaling is a transform on a wrapper
+  // whose box is set to the scaled size (that keeps scrolling right at 2×).
+  const [box, setBox] = useState({ width: 0, height: 0, scale: 1 });
+  useLayoutEffect(() => {
+    const el = element.current;
+    const container = stage.current;
+    if (!el || !container) return;
+    const measure = () => {
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      if (!width || !height) return;
+      const style = getComputedStyle(container);
+      const availW = container.clientWidth - parseFloat(style.paddingLeft) * 2;
+      const availH = container.clientHeight - parseFloat(style.paddingTop) * 2;
+      const scale =
+        zoom === "fit"
+          ? Math.max(0.05, Math.min(availW / width, availH / height, MAX_FIT_SCALE))
+          : zoom;
+      setBox({ width: width * scale, height: height * scale, scale });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [zoom, cols, rows]);
 
   useImperativeHandle(ref, () => {
     const setPixels = (pixels: ArrayLike<number>) => {
@@ -42,8 +77,15 @@ export function Matrix({
   }, []);
 
   return (
-    <div className="pixels">
-      <wokwi-neopixel-matrix ref={element} cols={cols} rows={rows} />
+    <div className="stage" ref={stage}>
+      <div
+        className="stage-box"
+        style={{ width: box.width || undefined, height: box.height || undefined }}
+      >
+        <div className="stage-scale" style={{ transform: `scale(${box.scale})` }}>
+          <wokwi-neopixel-matrix ref={element} cols={cols} rows={rows} />
+        </div>
+      </div>
     </div>
   );
 }

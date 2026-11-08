@@ -8,9 +8,12 @@
     "@wokwi/elements": "^1.9.2",
     "fflate": "^0.8.3",
     "lit-html": "^3.3.3",
+    "lucide-react": "^1.70.0",
     "monaco-editor": "0.57.0",
+    "radix-ui": "^1.8.1",
     "react": "^19",
-    "react-dom": "^19"
+    "react-dom": "^19",
+    "react-resizable-panels": "^4.19.1"
   },
   "devDependencies": {
     "@types/react": "^19",

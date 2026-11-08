@@ -12,10 +12,12 @@ const uriOf = (name: string) => monaco.Uri.parse(`inmemory://project/${name}`);
 export function CodeEditor({
   files,
   active,
+  theme,
   onChange,
 }: {
   files: SketchFile[];
   active: string;
+  theme: "light" | "dark";
   onChange: (name: string, content: string) => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -28,6 +30,10 @@ export function CodeEditor({
       model: null,
       minimap: { enabled: false },
       automaticLayout: true,
+      fontFamily: '"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+      fontSize: 13,
+      scrollBeyondLastLine: false,
+      padding: { top: 8 },
     });
     editor.current = instance;
     const subscription = instance.onDidChangeModelContent(() => {
@@ -64,6 +70,9 @@ export function CodeEditor({
     const model = monaco.editor.getModel(uriOf(active));
     if (model && editor.current?.getModel() !== model) editor.current?.setModel(model);
   }, [files, active]);
+
+  // The Monaco theme is global; it follows the app theme.
+  useEffect(() => monaco.editor.setTheme(theme === "dark" ? "vs-dark" : "vs"), [theme]);
 
   return <div className="code-editor" ref={container} />;
 }

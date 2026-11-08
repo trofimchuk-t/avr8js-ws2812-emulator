@@ -3,9 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>AVR8js NeoPixels + FastLED</title>
-    <link href="//fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet" />
+    <script>
+      // Apply the theme before the first paint (the app keeps it in sync afterwards).
+      try {
+        const pref = JSON.parse(localStorage.getItem("ledsim.theme") ?? '"system"');
+        const dark =
+          pref === "dark" ||
+          (pref !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      } catch {
+        // Storage blocked: the app sets the theme once it starts.
+      }
+    </script>
   </head>
 
   <body>

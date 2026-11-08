@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Tooltip } from "radix-ui";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createProject,
   deleteProject,
@@ -6,12 +7,12 @@ import {
   listProjects,
   type ProjectSummary,
 } from "../lib/api";
+import { errorText } from "../lib/errors";
 import { exportProject, importProject, type ProjectDraft } from "../lib/project-io";
 import { DEFAULT_TEMPLATE } from "../lib/templates";
+import { ThemeProvider } from "../lib/theme";
+import { ProjectActionsContext, type ProjectActions } from "./ProjectActions";
 import { ProjectEditor } from "./ProjectEditor";
-import { ProjectList } from "./ProjectList";
-
-const errorText = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 function useHashId() {
   const read = () => location.hash.replace(/^#\/?/, "") || null;
@@ -21,7 +22,10 @@ function useHashId() {
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-  return [id, (next: string | null) => (location.hash = next ? `/${next}` : "")] as const;
+  const select = useCallback((next: string | null) => {
+    location.hash = next ? `/${next}` : "";
+  }, []);
+  return [id, select] as const;
 }
 
 function download(file: { filename: string; mime: string; data: Uint8Array }) {
@@ -34,10 +38,21 @@ function download(file: { filename: string; mime: string; data: Uint8Array }) {
 }
 
 export function App() {
+  return (
+    <ThemeProvider>
+      <Tooltip.Provider delayDuration={400}>
+        <Projects />
+      </Tooltip.Provider>
+    </ThemeProvider>
+  );
+}
+
+function Projects() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [message, setMessage] = useState("");
   const [hashId, selectId] = useHashId();
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoadError("");
@@ -65,91 +80,110 @@ export function App() {
   const selectedId =
     projects && (projects.some((p) => p.id === hashId) ? hashId : (projects[0]?.id ?? null));
 
-  const run = async (action: () => Promise<void>) => {
-    setMessage("");
-    try {
-      await action();
-    } catch (err) {
-      setMessage(errorText(err));
-    }
-  };
-
-  const create = (draft: ProjectDraft) =>
-    run(async () => {
-      const project = await createProject(draft);
-      setProjects((list) => [project, ...(list ?? [])]);
-      selectId(project.id);
-    });
-
   const onSaved = useCallback((saved: ProjectSummary) => {
     setProjects((list) => list && [saved, ...list.filter((p) => p.id !== saved.id)]);
   }, []);
 
-  if (loadError) {
-    return (
-      <div className="startup-error">
-        <p>{loadError}</p>
-        <button onClick={() => void load()}>Retry</button>
-      </div>
-    );
-  }
-  if (!projects) return <div className="muted">Loading…</div>;
-
-  return (
-    <div className="layout">
-      <ProjectList
-        projects={projects}
-        selectedId={selectedId}
-        onSelect={selectId}
-        onCreate={create}
-        onImport={(file) =>
-          run(async () => {
-            const imported = importProject(file.name, new Uint8Array(await file.arrayBuffer()));
-            await create(imported);
-            if (imported.warnings.length) setMessage(imported.warnings.join("; "));
-          })
-        }
-        onDuplicate={(id) =>
-          run(async () => {
-            const source = await getProject(id);
-            await create({
-              name: `${source.name} (copy)`.slice(0, 100),
+  const actions = useMemo<ProjectActions | null>(() => {
+    if (!projects) return null;
+    const run = async (action: () => Promise<void>) => {
+      setMessage("");
+      try {
+        await action();
+      } catch (err) {
+        setMessage(errorText(err));
+      }
+    };
+    const add = async (draft: ProjectDraft) => {
+      const project = await createProject(draft);
+      setProjects((list) => [project, ...(list ?? [])]);
+      selectId(project.id);
+    };
+    return {
+      projects,
+      selectedId,
+      select: selectId,
+      create: (draft) => void run(() => add(draft)),
+      importFile: () => fileInput.current?.click(),
+      duplicate: (id) =>
+        void run(async () => {
+          const source = await getProject(id);
+          await add({
+            name: `${source.name} (copy)`.slice(0, 100),
+            led: source.led,
+            files: source.files,
+            main: source.mainFile,
+          });
+        }),
+      exportProject: (id) =>
+        void run(async () => {
+          const source = await getProject(id);
+          download(
+            exportProject({
+              name: source.name,
               led: source.led,
               files: source.files,
               main: source.mainFile,
-            });
-          })
-        }
-        onExport={(id) =>
-          run(async () => {
-            const source = await getProject(id);
-            download(
-              exportProject({
-                name: source.name,
-                led: source.led,
-                files: source.files,
-                main: source.mainFile,
-              }),
-            );
-          })
-        }
-        onDelete={(id) =>
-          run(async () => {
-            await deleteProject(id);
-            const rest = projects.filter((p) => p.id !== id);
-            setProjects(rest);
-            selectId(rest[0]?.id ?? null);
-          })
-        }
+            }),
+          );
+        }),
+      remove: (id) => {
+        const target = projects.find((p) => p.id === id);
+        if (!target || !window.confirm(`Delete "${target.name}"? This cannot be undone.`)) return;
+        void run(async () => {
+          await deleteProject(id);
+          const rest = projects.filter((p) => p.id !== id);
+          setProjects(rest);
+          if (id === selectedId) selectId(rest[0]?.id ?? null);
+        });
+      },
+    };
+  }, [projects, selectedId, selectId]);
+
+  if (loadError) {
+    return (
+      <div className="startup-state">
+        <p>{loadError}</p>
+        <button className="button primary" onClick={() => void load()}>
+          Retry
+        </button>
+      </div>
+    );
+  }
+  if (!actions) return <div className="startup-state muted">Loading…</div>;
+
+  return (
+    <ProjectActionsContext value={actions}>
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".ino,.zip"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          setMessage("");
+          void (async () => {
+            try {
+              const imported = importProject(file.name, new Uint8Array(await file.arrayBuffer()));
+              const project = await createProject(imported);
+              setProjects((list) => [project, ...(list ?? [])]);
+              selectId(project.id);
+              if (imported.warnings.length) setMessage(imported.warnings.join("; "));
+            } catch (err) {
+              setMessage(errorText(err));
+            }
+          })();
+        }}
       />
-      <main className="main">
-        {message && <div className="error">{message}</div>}
-        {selectedId ? (
-          <ProjectEditor key={selectedId} id={selectedId} onSaved={onSaved} />
-        ) : (
-          <div className="muted">Create a project to start.</div>
-        )}
-      </main>
-    </div>
+      <ProjectEditor
+        key={selectedId ?? "none"}
+        id={selectedId}
+        onSaved={onSaved}
+        message={message}
+        onDismissMessage={() => setMessage("")}
+      />
+    </ProjectActionsContext>
   );
 }

@@ -8,6 +8,8 @@ export interface ProjectActions {
   selectedId: string | null;
   select: (id: string) => void;
   create: (draft: ProjectDraft) => void;
+  /** Opens the "New project" dialog. */
+  openNewProject: () => void;
   /** Opens the file picker for .ino / .zip import. */
   importFile: () => void;
   duplicate: (id: string) => void;

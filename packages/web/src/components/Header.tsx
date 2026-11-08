@@ -1,8 +1,7 @@
-import { Check, ChevronDown, ChevronRight, Monitor, Moon, Sun, Zap } from "lucide-react";
+import { Check, ChevronDown, Monitor, Moon, Sun, Zap } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { SaveState } from "../hooks/useProjectDraft";
 import { useTheme, type ThemePref } from "../lib/theme";
-import { BLANK_DRAFT, TEMPLATES } from "../lib/templates";
 import { useProjectActions } from "./ProjectActions";
 import { Menu, MenuItem } from "./ui";
 
@@ -66,7 +65,8 @@ export function Header({
 }
 
 function ProjectMenu() {
-  const { selectedId, create, importFile, duplicate, exportProject, remove } = useProjectActions();
+  const { selectedId, openNewProject, importFile, duplicate, exportProject, remove } =
+    useProjectActions();
   return (
     <Menu
       trigger={
@@ -75,22 +75,7 @@ function ProjectMenu() {
         </button>
       }
     >
-      <MenuItem onSelect={() => create(BLANK_DRAFT)}>New blank sketch</MenuItem>
-      <DropdownMenu.Sub>
-        <DropdownMenu.SubTrigger className="menu-item">
-          New from example
-          <ChevronRight size={14} className="menu-item-end" aria-hidden />
-        </DropdownMenu.SubTrigger>
-        <DropdownMenu.Portal>
-          <DropdownMenu.SubContent className="menu" sideOffset={4}>
-            {TEMPLATES.map((t) => (
-              <MenuItem key={t.id} onSelect={() => create(t.draft)}>
-                {t.title}
-              </MenuItem>
-            ))}
-          </DropdownMenu.SubContent>
-        </DropdownMenu.Portal>
-      </DropdownMenu.Sub>
+      <MenuItem onSelect={openNewProject}>New project…</MenuItem>
       <MenuItem onSelect={importFile}>Import .ino / .zip…</MenuItem>
       <DropdownMenu.Separator className="menu-separator" />
       <MenuItem disabled={!selectedId} onSelect={() => selectedId && duplicate(selectedId)}>

@@ -2,7 +2,7 @@ import { strToU8, zipSync } from "fflate";
 import { createLedConfig } from "@avr8js-ws2812/engine";
 import { describe, expect, it } from "vitest";
 import { exportProject, importProject } from "./project-io";
-import { checkNewFileName, joinSources, sanitizeBaseName } from "./sketch-files";
+import { checkNewFileName, joinSources, sanitizeBaseName, suggestFileName } from "./sketch-files";
 
 const sketch = (pin: number, n: number) =>
   `#define N ${n}\nCRGB leds[N];\nvoid setup(){ FastLED.addLeds<NEOPIXEL, ${pin}>(leds, N); }\nvoid loop(){}`;
@@ -95,5 +95,13 @@ describe("sketch file helpers", () => {
     expect(checkNewFileName("A.ino", files)).toMatch(/exists/);
     expect(checkNewFileName("a.ino", files, "a.ino")).toBeNull();
     expect(checkNewFileName("../a.h", files)).toMatch(/Use letters/);
+  });
+});
+
+describe("suggestFileName", () => {
+  it("picks the first free name, ignoring case", () => {
+    const f = (name: string) => ({ name, content: "" });
+    expect(suggestFileName([f("a.ino")])).toBe("file.h");
+    expect(suggestFileName([f("a.ino"), f("FILE.h"), f("file2.h")])).toBe("file3.h");
   });
 });

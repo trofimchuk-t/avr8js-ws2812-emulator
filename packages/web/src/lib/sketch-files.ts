@@ -35,3 +35,12 @@ export function checkNewFileName(name: string, files: SketchFile[], ignore?: str
   }
   return null;
 }
+
+/** A free name for a new file: `file.h`, then `file2.h`, `file3.h`, … */
+export function suggestFileName(files: SketchFile[], base = "file", ext = ".h") {
+  const taken = new Set(files.map((f) => f.name.toLowerCase()));
+  for (let i = 1; ; i++) {
+    const name = `${base}${i === 1 ? "" : i}${ext}`;
+    if (!taken.has(name.toLowerCase())) return name;
+  }
+}

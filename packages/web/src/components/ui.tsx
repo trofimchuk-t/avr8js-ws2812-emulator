@@ -1,4 +1,5 @@
-import { DropdownMenu, Tooltip } from "radix-ui";
+import { MoreHorizontal } from "lucide-react";
+import { ContextMenu, DropdownMenu, Tooltip } from "radix-ui";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 /** Square icon button with an accessible name and a tooltip. */
@@ -29,21 +30,29 @@ export function IconButton({
   );
 }
 
-/** Dropdown menu with the shared styling. Items are `DropdownMenu.Item` etc. with `className="menu-item"`. */
+/** Dropdown menu with the shared styling. Items are `MenuItem`s or other `DropdownMenu` parts. */
 export function Menu({
   trigger,
   children,
   align = "start",
+  keepFocus,
 }: {
   trigger: ReactNode;
   children: ReactNode;
   align?: "start" | "end";
+  /** Do not move focus back to the trigger on close (an item opened an input that needs it). */
+  keepFocus?: boolean;
 }) {
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
-        <DropdownMenu.Content className="menu" align={align} sideOffset={4}>
+        <DropdownMenu.Content
+          className="menu"
+          align={align}
+          sideOffset={4}
+          onCloseAutoFocus={keepFocus ? (e) => e.preventDefault() : undefined}
+        >
           {children}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
@@ -70,5 +79,85 @@ export function MenuItem({
     >
       {children}
     </DropdownMenu.Item>
+  );
+}
+
+/** One entry of a row's action list, shown both in its "⋯" menu and its right-click menu. */
+export interface RowAction {
+  label: string;
+  onSelect: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  /** Shortcut hint shown on the right, e.g. "F2". */
+  hint?: string;
+}
+
+function ActionLabel({ action }: { action: RowAction }) {
+  return (
+    <>
+      {action.label}
+      {action.hint && <span className="menu-item-end menu-hint">{action.hint}</span>}
+    </>
+  );
+}
+
+/** "⋯" dropdown for a list row. */
+export function RowMenu({ label, actions }: { label: string; actions: RowAction[] }) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button className="row-menu" aria-label={label}>
+          <MoreHorizontal size={15} aria-hidden />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className="menu"
+          align="end"
+          sideOffset={4}
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
+          {actions.map((action) => (
+            <DropdownMenu.Item
+              key={action.label}
+              className={action.danger ? "menu-item danger" : "menu-item"}
+              disabled={action.disabled}
+              onSelect={action.onSelect}
+            >
+              <ActionLabel action={action} />
+            </DropdownMenu.Item>
+          ))}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+/** Right-click menu around a list row with the same actions as its `RowMenu`. */
+export function RowContextMenu({
+  actions,
+  children,
+}: {
+  actions: RowAction[];
+  children: ReactNode;
+}) {
+  return (
+    <ContextMenu.Root>
+      <ContextMenu.Trigger asChild>{children}</ContextMenu.Trigger>
+      <ContextMenu.Portal>
+        <ContextMenu.Content className="menu" onCloseAutoFocus={(e) => e.preventDefault()}>
+          {actions.map((action) => (
+            <ContextMenu.Item
+              key={action.label}
+              className={action.danger ? "menu-item danger" : "menu-item"}
+              disabled={action.disabled}
+              onSelect={action.onSelect}
+            >
+              <ActionLabel action={action} />
+            </ContextMenu.Item>
+          ))}
+        </ContextMenu.Content>
+      </ContextMenu.Portal>
+    </ContextMenu.Root>
   );
 }

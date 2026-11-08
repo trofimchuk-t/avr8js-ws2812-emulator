@@ -11,6 +11,8 @@ import { errorText } from "../lib/errors";
 import { exportProject, importProject, type ProjectDraft } from "../lib/project-io";
 import { DEFAULT_TEMPLATE } from "../lib/templates";
 import { ThemeProvider } from "../lib/theme";
+import { ConfirmProvider, useConfirm } from "./ConfirmDialog";
+import { NewProjectDialog } from "./NewProjectDialog";
 import { ProjectActionsContext, type ProjectActions } from "./ProjectActions";
 import { ProjectEditor } from "./ProjectEditor";
 
@@ -41,7 +43,9 @@ export function App() {
   return (
     <ThemeProvider>
       <Tooltip.Provider delayDuration={400}>
-        <Projects />
+        <ConfirmProvider>
+          <Projects />
+        </ConfirmProvider>
       </Tooltip.Provider>
     </ThemeProvider>
   );
@@ -53,6 +57,8 @@ function Projects() {
   const [message, setMessage] = useState("");
   const [hashId, selectId] = useHashId();
   const fileInput = useRef<HTMLInputElement>(null);
+  const [newOpen, setNewOpen] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(async () => {
     setLoadError("");
@@ -104,6 +110,7 @@ function Projects() {
       selectedId,
       select: selectId,
       create: (draft) => void run(() => add(draft)),
+      openNewProject: () => setNewOpen(true),
       importFile: () => fileInput.current?.click(),
       duplicate: (id) =>
         void run(async () => {
@@ -127,18 +134,23 @@ function Projects() {
             }),
           );
         }),
-      remove: (id) => {
-        const target = projects.find((p) => p.id === id);
-        if (!target || !window.confirm(`Delete "${target.name}"? This cannot be undone.`)) return;
+      remove: (id) =>
         void run(async () => {
+          const target = projects.find((p) => p.id === id);
+          if (!target) return;
+          const ok = await confirm({
+            title: `Delete "${target.name}"?`,
+            description: "The project and all its files are deleted. This cannot be undone.",
+            confirmLabel: "Delete project",
+            danger: true,
+          });
+          if (!ok) return;
           await deleteProject(id);
-          const rest = projects.filter((p) => p.id !== id);
-          setProjects(rest);
-          if (id === selectedId) selectId(rest[0]?.id ?? null);
-        });
-      },
+          setProjects((list) => list && list.filter((p) => p.id !== id));
+          if (id === selectedId) selectId(projects.find((p) => p.id !== id)?.id ?? null);
+        }),
     };
-  }, [projects, selectedId, selectId]);
+  }, [projects, selectedId, selectId, confirm]);
 
   if (loadError) {
     return (
@@ -176,6 +188,11 @@ function Projects() {
             }
           })();
         }}
+      />
+      <NewProjectDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onCreate={(draft) => actions.create(draft)}
       />
       <ProjectEditor
         key={selectedId ?? "none"}

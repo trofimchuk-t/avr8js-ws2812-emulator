@@ -1,9 +1,10 @@
-import { Check, ChevronDown, Monitor, Moon, Sun, Zap } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, Monitor, Moon, Settings, Sun, Zap } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import type { SaveState } from "../hooks/useProjectDraft";
 import { useTheme, type ThemePref } from "../lib/theme";
 import { useProjectActions } from "./ProjectActions";
-import { Menu, MenuItem } from "./ui";
+import { shortcutText } from "../lib/shortcuts";
+import { IconButton, Menu, MenuItem } from "./ui";
 
 const SAVE_LABEL: Record<SaveState, string> = {
   saved: "Saved",
@@ -20,7 +21,11 @@ const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
 
 export function Header({
   project,
+  onOpenSettings,
+  onOpenShortcuts,
 }: {
+  onOpenSettings: () => void;
+  onOpenShortcuts: () => void;
   /** Absent while loading or when there is no project. */
   project?: {
     name: string;
@@ -37,6 +42,7 @@ export function Header({
       </div>
       <nav className="header-menus" aria-label="Main menu">
         <ProjectMenu />
+        <HelpMenu onOpenShortcuts={onOpenShortcuts} />
       </nav>
       <div className="header-project">
         {project && (
@@ -60,7 +66,38 @@ export function Header({
         )}
       </div>
       <ThemeMenu />
+      <IconButton label={`Settings (${shortcutText("settings")})`} onClick={onOpenSettings}>
+        <Settings size={17} />
+      </IconButton>
     </header>
+  );
+}
+
+const LINKS = [
+  { label: "FastLED documentation", href: "https://fastled.io/docs/" },
+  { label: "avr8js on GitHub", href: "https://github.com/wokwi/avr8js" },
+];
+
+function HelpMenu({ onOpenShortcuts }: { onOpenShortcuts: () => void }) {
+  return (
+    <Menu
+      trigger={
+        <button className="menu-trigger">
+          Help <ChevronDown size={14} aria-hidden />
+        </button>
+      }
+    >
+      <MenuItem onSelect={onOpenShortcuts}>Keyboard shortcuts</MenuItem>
+      <DropdownMenu.Separator className="menu-separator" />
+      {LINKS.map((link) => (
+        <DropdownMenu.Item key={link.href} className="menu-item" asChild>
+          <a href={link.href} target="_blank" rel="noreferrer">
+            {link.label}
+            <ExternalLink size={13} className="menu-item-end" aria-hidden />
+          </a>
+        </DropdownMenu.Item>
+      ))}
+    </Menu>
   );
 }
 

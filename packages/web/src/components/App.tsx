@@ -10,6 +10,7 @@ import {
 import { errorText } from "../lib/errors";
 import { exportProject, importProject, type ProjectDraft } from "../lib/project-io";
 import { DEFAULT_TEMPLATE } from "../lib/templates";
+import { SettingsProvider } from "../lib/settings";
 import { ThemeProvider } from "../lib/theme";
 import { ConfirmProvider, useConfirm } from "./ConfirmDialog";
 import { NewProjectDialog } from "./NewProjectDialog";
@@ -42,11 +43,13 @@ function download(file: { filename: string; mime: string; data: Uint8Array }) {
 export function App() {
   return (
     <ThemeProvider>
-      <Tooltip.Provider delayDuration={400}>
-        <ConfirmProvider>
-          <Projects />
-        </ConfirmProvider>
-      </Tooltip.Provider>
+      <SettingsProvider>
+        <Tooltip.Provider delayDuration={400}>
+          <ConfirmProvider>
+            <Projects />
+          </ConfirmProvider>
+        </Tooltip.Provider>
+      </SettingsProvider>
     </ThemeProvider>
   );
 }

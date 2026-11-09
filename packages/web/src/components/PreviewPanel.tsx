@@ -25,7 +25,7 @@ export function PreviewPanel({
       <div className="panel-header">
         <h2>Preview</h2>
         <span className="panel-meta">
-          {cols}×{rows}
+          {led.layout.kind === "matrix" ? `${cols}×${rows} matrix` : `${led.count} LED strip`}
         </span>
         <div className="spacer" />
         <div className="segmented" role="group" aria-label="Zoom">

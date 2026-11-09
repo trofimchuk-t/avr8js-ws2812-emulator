@@ -6,11 +6,16 @@ import { LedSettings } from "./LedSettings";
 export function HardwarePanel({
   led,
   sketchConfig,
+  runningLed,
   onChange,
+  onRestart,
 }: {
   led: LedConfig;
   sketchConfig: SketchConfigResult;
+  /** The settings of the simulation that is running or paused, if any. */
+  runningLed: LedConfig | null;
   onChange: (led: LedConfig) => void;
+  onRestart: () => void;
 }) {
   const { found, config, warnings } = sketchConfig;
   const mismatches: string[] = [];
@@ -24,6 +29,14 @@ export function HardwarePanel({
     mismatches.push(`color order ${config.colorOrder} (settings: ${led.colorOrder})`);
   }
 
+  // The layout is only drawing, so the preview follows it at once. Pin, count and color order
+  // are part of the decoding, so a running simulation needs a restart to pick them up.
+  const stale =
+    runningLed &&
+    (runningLed.dataPin !== led.dataPin ||
+      runningLed.count !== led.count ||
+      runningLed.colorOrder !== led.colorOrder);
+
   return (
     <section className="hardware" aria-label="Hardware">
       <div className="panel-header">
@@ -31,6 +44,7 @@ export function HardwarePanel({
         <span className="panel-meta">WS2812B on ATmega328p</span>
       </div>
       <div className="hardware-body">
+        <LedSettings led={led} onChange={onChange} />
         {mismatches.length > 0 && (
           <div className="banner warn" role="status">
             <AlertTriangle size={16} aria-hidden />
@@ -58,7 +72,18 @@ export function HardwarePanel({
             <div>{warning}</div>
           </div>
         ))}
-        <LedSettings led={led} onChange={onChange} />
+        {stale && (
+          <div className="banner info" role="status">
+            <Info size={16} aria-hidden />
+            <div>
+              The running simulation still uses D{runningLed.dataPin}, {runningLed.count} LEDs,{" "}
+              {runningLed.colorOrder}.
+              <button className="button small" onClick={onRestart}>
+                Restart with these settings
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

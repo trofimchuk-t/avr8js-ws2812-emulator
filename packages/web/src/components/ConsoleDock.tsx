@@ -2,11 +2,38 @@ import { ChevronDown, ChevronUp, Eraser } from "lucide-react";
 import { Tabs } from "radix-ui";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CompileOutput } from "../hooks/useSimulation";
+import type { Diagnostic } from "../lib/diagnostics";
 import { IconButton } from "./ui";
 
 type ConsoleTab = "compiler" | "serial";
 
-const countErrors = (text: string) => text.match(/\berror:/g)?.length ?? 0;
+/** Compiler output with diagnostic lines as buttons that jump to the code. */
+function CompilerText({
+  text,
+  diagnostics,
+  onJump,
+}: {
+  text: string;
+  diagnostics: Diagnostic[];
+  onJump: (d: Diagnostic) => void;
+}) {
+  const byLine = new Map(diagnostics.map((d) => [d.outputLine, d]));
+  return text.split("\n").map((line, i) => {
+    const d = byLine.get(i);
+    if (!d) return <div key={i}>{line || "\u00a0"}</div>;
+    const where = `${d.file}:${d.line}${d.column ? `:${d.column}` : ""}`;
+    return (
+      <button
+        key={i}
+        className={`diag ${d.severity}`}
+        title={`Go to ${where}`}
+        onClick={() => onJump(d)}
+      >
+        <span className="diag-where">{where}</span> {d.severity}: {d.message}
+      </button>
+    );
+  });
+}
 
 /** Keeps a scrolled-to-bottom <pre> pinned to the bottom as text arrives. */
 function useStickToBottom(text: string) {
@@ -25,6 +52,8 @@ function useStickToBottom(text: string) {
 
 export function ConsoleDock({
   compileOutput,
+  diagnostics,
+  onJump,
   serial,
   onClearCompiler,
   onClearSerial,
@@ -32,6 +61,8 @@ export function ConsoleDock({
   onToggleCollapsed,
 }: {
   compileOutput: CompileOutput | null;
+  diagnostics: Diagnostic[];
+  onJump: (d: Diagnostic) => void;
   serial: string;
   onClearCompiler: () => void;
   onClearSerial: () => void;
@@ -55,8 +86,13 @@ export function ConsoleDock({
   }, [tab, collapsed]);
 
   const compilerText = compileOutput?.text ?? "";
-  const errors = countErrors(compilerText);
-  const compilerView = useStickToBottom(compilerText);
+  const errors = diagnostics.filter((d) => d.severity === "error").length;
+  const warnings = diagnostics.length - errors;
+  // New compiler output starts at the top: the first error matters most.
+  const compilerRef = useRef<HTMLPreElement>(null);
+  useLayoutEffect(() => {
+    if (compilerRef.current) compilerRef.current.scrollTop = 0;
+  }, [compilerText]);
   const serialView = useStickToBottom(serial);
 
   return (
@@ -72,7 +108,16 @@ export function ConsoleDock({
         <Tabs.List className="console-tabs" aria-label="Output">
           <Tabs.Trigger value="compiler" className="console-tab">
             Compiler
-            {errors > 0 && <span className="badge danger">{errors}</span>}
+            {errors > 0 && (
+              <span className="badge danger" title={`${errors} errors`}>
+                {errors}
+              </span>
+            )}
+            {warnings > 0 && (
+              <span className="badge warn" title={`${warnings} warnings`}>
+                {warnings}
+              </span>
+            )}
             {errors === 0 && compileOutput?.failed && <span className="badge danger">!</span>}
           </Tabs.Trigger>
           <Tabs.Trigger value="serial" className="console-tab">
@@ -98,11 +143,20 @@ export function ConsoleDock({
         hidden={tab !== "compiler"}
       >
         <pre
-          ref={compilerView.ref}
-          onScroll={compilerView.onScroll}
-          className={compileOutput?.failed ? "console-text failed" : "console-text"}
+          ref={compilerRef}
+          className={
+            compileOutput?.failed && diagnostics.length === 0
+              ? "console-text failed"
+              : "console-text"
+          }
         >
-          {compilerText || <span className="muted">Press Run to compile the sketch.</span>}
+          {compileOutput === null ? (
+            <span className="muted">Press Run to compile the sketch.</span>
+          ) : compilerText ? (
+            <CompilerText text={compilerText} diagnostics={diagnostics} onJump={onJump} />
+          ) : (
+            <span className="muted">Compiled without messages.</span>
+          )}
         </pre>
       </Tabs.Content>
       <Tabs.Content value="serial" className="console-body" forceMount hidden={tab !== "serial"}>

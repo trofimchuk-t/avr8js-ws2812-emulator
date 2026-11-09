@@ -1,6 +1,7 @@
 import { formatTime } from "@avr8js-ws2812/engine";
 import { Loader2, Pause, Play, RotateCw, Square } from "lucide-react";
 import type { RunState, Speed } from "../hooks/useSimulation";
+import { shortcutText } from "../lib/shortcuts";
 
 const STATUS: Record<RunState, string> = {
   idle: "Stopped",
@@ -43,7 +44,7 @@ export function Toolbar({
         className="button primary"
         onClick={onRun}
         disabled={disabled || runState === "compiling"}
-        title={active ? "Compile and restart" : "Compile and run"}
+        title={`${active ? "Compile and restart" : "Compile and run"} (${shortcutText("run")})`}
       >
         {runState === "compiling" ? (
           <Loader2 size={16} className="spin" aria-hidden />
@@ -54,7 +55,12 @@ export function Toolbar({
         )}
         {active ? "Restart" : "Run"}
       </button>
-      <button className="button" onClick={onStop} disabled={!active}>
+      <button
+        className="button"
+        onClick={onStop}
+        disabled={!active}
+        title={`Stop (${shortcutText("stop")})`}
+      >
         <Square size={14} aria-hidden />
         Stop
       </button>

@@ -1,6 +1,6 @@
 import { createLedConfig, parseSketchConfig } from "@avr8js-ws2812/engine";
 import { Files, FolderKanban, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Group,
   Panel,
@@ -11,10 +11,13 @@ import {
 import { useProjectDraft } from "../hooks/useProjectDraft";
 import { useSimulation } from "../hooks/useSimulation";
 import type { ProjectSummary } from "../lib/api";
+import { parseDiagnostics, type Diagnostic } from "../lib/diagnostics";
+import { useSettings } from "../lib/settings";
+import { matchShortcut, type ShortcutId } from "../lib/shortcuts";
 import { joinSources } from "../lib/sketch-files";
 import { layoutStorage, usePref } from "../lib/storage";
 import { useTheme } from "../lib/theme";
-import { CodeEditor } from "./CodeEditor";
+import { CodeEditor, type JumpTarget } from "./CodeEditor";
 import { ConsoleDock } from "./ConsoleDock";
 import { FileTabs } from "./FileTabs";
 import { FilesPanel } from "./FilesPanel";
@@ -23,6 +26,7 @@ import { Header } from "./Header";
 import type { MatrixHandle } from "./Matrix";
 import { PreviewPanel } from "./PreviewPanel";
 import { ProjectsPanel } from "./ProjectsPanel";
+import { SettingsDialog, ShortcutsDialog } from "./SettingsDialogs";
 import { Toolbar } from "./Toolbar";
 import { IconButton } from "./ui";
 
@@ -45,6 +49,8 @@ export function ProjectEditor({
   onDismissMessage: () => void;
 }) {
   const { theme } = useTheme();
+  const { settings } = useSettings();
+  const [dialog, setDialog] = useState<"settings" | "shortcuts" | null>(null);
   const { draft, loadError, saveState, saveError, save, update, editFile } = useProjectDraft(
     id,
     onSaved,
@@ -81,8 +87,58 @@ export function ProjectEditor({
     [files, main],
   );
 
+  // Compiler messages for files of this project, shown in the editor and the console.
+  const fileNames = useMemo(() => files?.map((f) => f.name) ?? [], [files]);
+  const fileKey = fileNames.join("\n");
+  const diagnostics = useMemo(
+    () => (sim.compileOutput ? parseDiagnostics(sim.compileOutput.text, fileKey.split("\n")) : []),
+    [sim.compileOutput, fileKey],
+  );
+  const [jump, setJump] = useState<JumpTarget | null>(null);
+  const jumpTo = (d: Diagnostic) => {
+    setActive(d.file);
+    setJump((prev) => ({
+      file: d.file,
+      line: d.line,
+      column: d.column,
+      seq: (prev?.seq ?? 0) + 1,
+    }));
+  };
+
+  const toggleConsole = () => {
+    const panel = consolePanel.current;
+    if (!panel) return;
+    if (panel.isCollapsed()) panel.expand();
+    else panel.collapse();
+  };
+
+  // --- keyboard shortcuts (capture phase, so they win over Monaco's own bindings) ---
+  const handlers: Record<ShortcutId, () => void> = {
+    run: () => draft && sim.runState !== "compiling" && void sim.run(draft),
+    stop: sim.stop,
+    save: () => void save(),
+    sidebar: () => onRail(sideTab),
+    console: toggleConsole,
+    settings: () => setDialog("settings"),
+  };
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const id = matchShortcut(e);
+      if (!id) return;
+      // A modal dialog owns the keyboard (Enter there submits it).
+      if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      handlersRef.current[id]();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+
   const activeFile = draft?.files.some((f) => f.name === active) ? active : (draft?.main ?? "");
-  const shownLed = sim.runningLed ?? draft?.led ?? PLACEHOLDER_LED;
+  const shownLed = draft?.led ?? PLACEHOLDER_LED;
 
   let editorPlaceholder: string | null = null;
   if (!id) editorPlaceholder = "Create a project to start.";
@@ -102,6 +158,16 @@ export function ProjectEditor({
               }
             : undefined
         }
+        onOpenSettings={() => setDialog("settings")}
+        onOpenShortcuts={() => setDialog("shortcuts")}
+      />
+      <SettingsDialog
+        open={dialog === "settings"}
+        onOpenChange={(open) => setDialog(open ? "settings" : null)}
+      />
+      <ShortcutsDialog
+        open={dialog === "shortcuts"}
+        onOpenChange={(open) => setDialog(open ? "shortcuts" : null)}
       />
       <Toolbar
         runState={sim.runState}
@@ -218,6 +284,9 @@ export function ProjectEditor({
                       files={draft.files}
                       active={activeFile}
                       theme={theme}
+                      settings={settings}
+                      diagnostics={diagnostics}
+                      jump={jump}
                       onChange={editFile}
                     />
                   </>
@@ -236,15 +305,13 @@ export function ProjectEditor({
               >
                 <ConsoleDock
                   compileOutput={sim.compileOutput}
+                  diagnostics={diagnostics}
+                  onJump={jumpTo}
                   serial={sim.serial}
                   onClearCompiler={sim.clearCompileOutput}
                   onClearSerial={sim.clearSerial}
                   collapsed={consoleCollapsed}
-                  onToggleCollapsed={() =>
-                    consoleCollapsed
-                      ? consolePanel.current?.expand()
-                      : consolePanel.current?.collapse()
-                  }
+                  onToggleCollapsed={toggleConsole}
                 />
               </Panel>
             </Group>
@@ -273,6 +340,12 @@ export function ProjectEditor({
                   <HardwarePanel
                     led={draft.led}
                     sketchConfig={sketchConfig}
+                    runningLed={
+                      sim.runState === "running" || sim.runState === "paused"
+                        ? sim.runningLed
+                        : null
+                    }
+                    onRestart={() => void sim.run(draft)}
                     onChange={(led) => update({ led })}
                   />
                 ) : (

@@ -7,6 +7,9 @@ declare module "react" {
         React.HTMLAttributes<HTMLElement>,
         HTMLElement
       > & { cols?: number; rows?: number };
+      "wokwi-led-ring": React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        pixels?: number;
+      };
     }
   }
 }

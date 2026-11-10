@@ -1,8 +1,31 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  RotateCw,
+  type LucideIcon,
+} from "lucide-react";
 import { COLOR_ORDERS, MAX_LEDS, type ColorOrder, type LedConfig } from "@avr8js-ws2812/engine";
 
 const PINS = Array.from({ length: 12 }, (_, i) => i + 2);
+
+/** Direction buttons for each layout that has one (`reversed` is the stored value). */
+const DIRECTIONS: Record<
+  "strip" | "ring",
+  { reversed: boolean; label: string; Icon: LucideIcon }[]
+> = {
+  strip: [
+    { reversed: false, label: "Left to right", Icon: ArrowRight },
+    { reversed: true, label: "Right to left", Icon: ArrowLeft },
+  ],
+  ring: [
+    { reversed: false, label: "Clockwise", Icon: RotateCw },
+    { reversed: true, label: "Counter-clockwise", Icon: RotateCcw },
+  ],
+};
 
 /**
  * Whole-number field with ▲/▼ steppers. Typing is only applied when the field loses focus or on
@@ -134,15 +157,23 @@ export function LedSettings({
               onChange(
                 e.target.value === "matrix"
                   ? { ...led, layout: { kind: "matrix", cols: led.count, rows: 1 } }
-                  : { ...led, layout: { kind: "strip" } },
+                  : {
+                      ...led,
+                      layout: {
+                        kind: e.target.value === "ring" ? "ring" : "strip",
+                        // Switching between strip and ring keeps the direction.
+                        ...(layout.kind !== "matrix" && layout.reversed && { reversed: true }),
+                      },
+                    },
               )
             }
           >
             <option value="strip">Strip</option>
+            <option value="ring">Ring</option>
             <option value="matrix">Matrix</option>
           </select>
         </label>
-        {layout.kind === "strip" ? (
+        {layout.kind !== "matrix" && (
           <NumberField
             label="LEDs"
             value={led.count}
@@ -150,7 +181,33 @@ export function LedSettings({
             max={MAX_LEDS}
             onCommit={(count) => onChange({ ...led, count })}
           />
-        ) : (
+        )}
+        {layout.kind !== "matrix" && (
+          <div className="led-field">
+            <span id="led-direction">Direction</span>
+            <div className="segmented led-direction" role="group" aria-labelledby="led-direction">
+              {DIRECTIONS[layout.kind].map(({ reversed, label, Icon }) => (
+                <button
+                  key={label}
+                  type="button"
+                  className="segment"
+                  aria-label={label}
+                  title={label}
+                  aria-pressed={!!layout.reversed === reversed}
+                  onClick={() =>
+                    onChange({
+                      ...led,
+                      layout: reversed ? { kind: layout.kind, reversed } : { kind: layout.kind },
+                    })
+                  }
+                >
+                  <Icon size={16} aria-hidden />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {layout.kind === "matrix" && (
           <>
             <NumberField
               label="Columns"

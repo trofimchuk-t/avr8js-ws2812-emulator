@@ -7,9 +7,16 @@ export const COLOR_ORDERS = ["RGB", "RBG", "GRB", "GBR", "BRG", "BGR"] as const;
 export type ColorOrder = (typeof COLOR_ORDERS)[number];
 
 export interface LedConfig {
-  /** Number of LEDs in the strip or matrix. */
+  /** Number of LEDs in the strip, ring or matrix. */
   count: number;
-  layout: { kind: "strip" } | { kind: "matrix"; cols: number; rows: number; serpentine?: boolean };
+  /**
+   * How the LEDs are drawn. A strip runs left to right, a ring is `count` LEDs on a circle with
+   * LED 0 at the top, clockwise. `reversed` flips that: right to left, counter-clockwise.
+   */
+  layout:
+    | { kind: "strip"; reversed?: boolean }
+    | { kind: "ring"; reversed?: boolean }
+    | { kind: "matrix"; cols: number; rows: number; serpentine?: boolean };
   /** Arduino pin number of the data line, D2..D13. */
   dataPin: number;
   colorOrder: ColorOrder;
@@ -42,6 +49,16 @@ export function wireToGrb(word: number, order: ColorOrder): number {
   const channel = { R: 0, G: 0, B: 0 };
   for (let i = 0; i < 3; i++) channel[order[i] as "R" | "G" | "B"] = wire[i];
   return (channel.G << 16) | (channel.R << 8) | channel.B;
+}
+
+/**
+ * Position on screen of LED `i` (0 is the left end of a strip, the top of a ring, and for a matrix
+ * the index in row order). Only drawing uses it: frames stay in wire order.
+ */
+export function displayPosition(layout: LedConfig["layout"], count: number, i: number): number {
+  if (layout.kind === "matrix" || !layout.reversed) return i;
+  // A reversed ring keeps LED 0 at the top and goes the other way round.
+  return layout.kind === "ring" ? (count - i) % count : count - 1 - i;
 }
 
 /**
@@ -80,6 +97,18 @@ export function validateLedConfig(value: unknown): LedConfig {
           : { kind: "matrix", cols, rows, serpentine: !!serpentine },
     };
   }
-  if (layout?.kind !== "strip") throw new RangeError("Layout must be a strip or a matrix");
-  return { count, dataPin, colorOrder, chip: "WS2812B", layout: { kind: "strip" } };
+  if (layout?.kind !== "strip" && layout?.kind !== "ring") {
+    throw new RangeError("Layout must be a strip, a ring or a matrix");
+  }
+  const { reversed } = layout;
+  if (reversed !== undefined && typeof reversed !== "boolean") {
+    throw new RangeError("Layout direction (`reversed`) must be true or false");
+  }
+  return {
+    count,
+    dataPin,
+    colorOrder,
+    chip: "WS2812B",
+    layout: reversed === undefined ? { kind: layout.kind } : { kind: layout.kind, reversed },
+  };
 }

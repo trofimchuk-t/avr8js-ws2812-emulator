@@ -56,7 +56,11 @@ export function HardwarePanel({
                   onChange({
                     ...led,
                     ...(found.dataPin && { dataPin: config.dataPin }),
-                    ...(found.count && { count: config.count, layout: { kind: "strip" } }),
+                    ...(found.count && {
+                      count: config.count,
+                      // A matrix has to match the count; a strip or ring just follows it.
+                      layout: led.layout.kind === "matrix" ? { kind: "strip" } : led.layout,
+                    }),
                     ...(found.colorOrder && { colorOrder: config.colorOrder }),
                   })
                 }

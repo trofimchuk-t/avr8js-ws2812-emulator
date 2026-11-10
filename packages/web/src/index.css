@@ -973,6 +973,20 @@ h2 {
 .stage-box {
   margin: auto;
   flex: none;
+  cursor: grab;
+  touch-action: none;
+}
+
+.stage.dragging,
+.stage.dragging .stage-box {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The ring element ships no styles, so it would be inline and measure as one line of text. */
+wokwi-led-ring {
+  display: block;
+  line-height: 0;
 }
 
 .stage-scale {
@@ -1021,6 +1035,21 @@ h2 {
   color: var(--text);
   width: 100%;
   min-width: 0;
+}
+
+/* Same height as the other fields; the buttons share the width. */
+.led-direction {
+  display: flex;
+  height: 30px;
+  box-sizing: border-box;
+}
+
+.led-direction .segment {
+  flex: 1;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .led-field select:hover,

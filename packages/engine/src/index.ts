@@ -9,6 +9,7 @@ export {
   DEFAULT_LED_CONFIG,
   MAX_LEDS,
   createLedConfig,
+  displayPosition,
   validateLedConfig,
   wireToGrb,
 } from "./led-config.ts";

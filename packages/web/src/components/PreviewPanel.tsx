@@ -20,12 +20,15 @@ export function PreviewPanel({
   const [zoom, setZoom] = usePref<Zoom>("zoom", "fit");
   const cols = led.layout.kind === "matrix" ? led.layout.cols : led.count;
   const rows = led.layout.kind === "matrix" ? led.layout.rows : 1;
+  const reversed = led.layout.kind !== "matrix" && !!led.layout.reversed;
   return (
     <section className="preview" aria-label="LED preview">
       <div className="panel-header">
         <h2>Preview</h2>
         <span className="panel-meta">
-          {led.layout.kind === "matrix" ? `${cols}×${rows} matrix` : `${led.count} LED strip`}
+          {led.layout.kind === "matrix"
+            ? `${cols}×${rows} matrix`
+            : `${led.count} LED ${led.layout.kind}${reversed ? (led.layout.kind === "ring" ? ", counter-clockwise" : ", right to left") : ""}`}
         </span>
         <div className="spacer" />
         <div className="segmented" role="group" aria-label="Zoom">
@@ -41,7 +44,14 @@ export function PreviewPanel({
           ))}
         </div>
       </div>
-      <Matrix ref={matrix} cols={cols} rows={rows} zoom={zoom} />
+      <Matrix
+        ref={matrix}
+        cols={cols}
+        rows={rows}
+        ring={led.layout.kind === "ring"}
+        reversed={reversed}
+        zoom={zoom}
+      />
     </section>
   );
 }

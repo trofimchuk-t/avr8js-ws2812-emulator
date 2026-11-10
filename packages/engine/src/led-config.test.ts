@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLedConfig, validateLedConfig, wireToGrb } from "./led-config.ts";
+import { createLedConfig, displayPosition, validateLedConfig, wireToGrb } from "./led-config.ts";
 import { arduinoPinToPort } from "./pins.ts";
 
 describe("arduinoPinToPort", () => {
@@ -30,8 +30,12 @@ describe("wireToGrb", () => {
 });
 
 describe("validateLedConfig", () => {
-  it("accepts a valid strip and a matrix, dropping unknown fields", () => {
+  it("accepts a valid strip, a ring and a matrix, dropping unknown fields", () => {
     expect(validateLedConfig({ ...createLedConfig(), extra: 1 })).toEqual(createLedConfig());
+    const ring = createLedConfig({ count: 16, layout: { kind: "ring" } });
+    expect(validateLedConfig({ ...ring, layout: { kind: "ring", cols: 4 } })).toEqual(ring);
+    const reversed = createLedConfig({ count: 16, layout: { kind: "strip", reversed: true } });
+    expect(validateLedConfig(reversed)).toEqual(reversed);
     const matrix = createLedConfig({ count: 12, layout: { kind: "matrix", cols: 4, rows: 3 } });
     expect(validateLedConfig(matrix)).toEqual(matrix);
   });
@@ -45,9 +49,31 @@ describe("validateLedConfig", () => {
       { ...createLedConfig(), dataPin: 1 },
       { ...createLedConfig(), colorOrder: "XYZ" },
       { ...createLedConfig(), chip: "APA102" },
-      { ...createLedConfig(), layout: { kind: "ring" } },
+      { ...createLedConfig(), layout: { kind: "circle" } },
+      { ...createLedConfig(), layout: { kind: "ring", reversed: "yes" } },
       { ...createLedConfig(), count: 10, layout: { kind: "matrix", cols: 3, rows: 3 } },
     ];
     for (const value of bad) expect(() => validateLedConfig(value)).toThrow(RangeError);
+  });
+});
+
+describe("displayPosition", () => {
+  const positions = (layout: Parameters<typeof displayPosition>[0], count: number) =>
+    Array.from({ length: count }, (_, i) => displayPosition(layout, count, i));
+
+  it("keeps the order by default", () => {
+    expect(positions({ kind: "strip" }, 4)).toEqual([0, 1, 2, 3]);
+    expect(positions({ kind: "ring", reversed: false }, 4)).toEqual([0, 1, 2, 3]);
+    expect(positions({ kind: "matrix", cols: 2, rows: 2 }, 4)).toEqual([0, 1, 2, 3]);
+  });
+  it("draws a reversed strip right to left", () => {
+    expect(positions({ kind: "strip", reversed: true }, 4)).toEqual([3, 2, 1, 0]);
+  });
+  it("draws a reversed ring counter-clockwise from the top", () => {
+    expect(positions({ kind: "ring", reversed: true }, 4)).toEqual([0, 3, 2, 1]);
+  });
+  it("handles a single LED", () => {
+    expect(positions({ kind: "strip", reversed: true }, 1)).toEqual([0]);
+    expect(positions({ kind: "ring", reversed: true }, 1)).toEqual([0]);
   });
 });

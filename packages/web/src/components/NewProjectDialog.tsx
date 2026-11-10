@@ -16,7 +16,9 @@ const describe = (led: LedConfig) =>
   [
     led.layout.kind === "matrix"
       ? `${led.layout.cols}×${led.layout.rows} matrix`
-      : `${led.count} LEDs`,
+      : led.layout.kind === "ring"
+        ? `${led.count} LED ring`
+        : `${led.count} LEDs`,
     `D${led.dataPin}`,
     led.colorOrder,
   ].join(" · ");

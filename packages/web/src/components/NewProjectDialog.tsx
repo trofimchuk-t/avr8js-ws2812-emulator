@@ -14,8 +14,8 @@ interface Choice {
 
 const describe = (led: LedConfig) =>
   [
-    led.layout.kind === "matrix"
-      ? `${led.layout.cols}×${led.layout.rows} matrix`
+    led.layout.kind === "matrix" || led.layout.kind === "custom"
+      ? `${led.layout.cols}×${led.layout.rows} ${led.layout.kind === "custom" ? "custom " : ""}matrix`
       : led.layout.kind === "ring"
         ? `${led.count} LED ring`
         : `${led.count} LEDs`,

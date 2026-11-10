@@ -14,6 +14,19 @@ export {
   wireToGrb,
 } from "./led-config.ts";
 export type { ColorOrder, LedConfig } from "./led-config.ts";
+export {
+  SEGMENT_DIRECTIONS,
+  clipSegments,
+  reverseSegment,
+  rowSegments,
+  segmentCells,
+  segmentTowards,
+  segmentsLedCount,
+  validateSegments,
+  wiringCells,
+  wiringGrid,
+} from "./wiring.ts";
+export type { Cell, CustomLayout, LedSegment, SegmentDirection } from "./wiring.ts";
 export { arduinoPinToPort } from "./pins.ts";
 export type { PinMapping } from "./pins.ts";
 export { parseSketchConfig } from "./sketch-config.ts";

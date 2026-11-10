@@ -332,7 +332,11 @@ export function ProjectEditor({
               onLayoutChanged={rightLayout.onLayoutChanged}
             >
               <Panel id="preview" minSize={120} className="panel">
-                <PreviewPanel led={shownLed} matrix={matrix} />
+                <PreviewPanel
+                  led={shownLed}
+                  matrix={matrix}
+                  onChange={draft ? (led) => update({ led }) : undefined}
+                />
               </Panel>
               <Separator className="resize-handle" />
               <Panel id="hardware" defaultSize="40%" minSize={120} className="panel scroll">

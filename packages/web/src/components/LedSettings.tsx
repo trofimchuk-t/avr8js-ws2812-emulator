@@ -8,7 +8,17 @@ import {
   RotateCw,
   type LucideIcon,
 } from "lucide-react";
-import { COLOR_ORDERS, MAX_LEDS, type ColorOrder, type LedConfig } from "@avr8js-ws2812/engine";
+import {
+  COLOR_ORDERS,
+  MAX_LEDS,
+  clipSegments,
+  rowSegments,
+  segmentsLedCount,
+  type ColorOrder,
+  type CustomLayout,
+  type LedConfig,
+  type LedSegment,
+} from "@avr8js-ws2812/engine";
 
 const PINS = Array.from({ length: 12 }, (_, i) => i + 2);
 
@@ -26,6 +36,68 @@ const DIRECTIONS: Record<
     { reversed: true, label: "Counter-clockwise", Icon: RotateCcw },
   ],
 };
+
+type LayoutKind = LedConfig["layout"]["kind"];
+
+/** Rows left to right, top to bottom, with only `count` LEDs (the last row may be short). */
+function fillRows(cols: number, rows: number, count: number): LedSegment[] {
+  return clipSegments(rowSegments(cols, rows), cols, rows)
+    .map((segment) => ({
+      ...segment,
+      length: Math.min(segment.length, count - segment.row * cols),
+    }))
+    .filter((segment) => segment.length > 0);
+}
+
+/** Switches the layout type, keeping as much of the current setup as makes sense. */
+function withLayoutKind(led: LedConfig, kind: LayoutKind): LedConfig {
+  const { layout } = led;
+  switch (kind) {
+    case "strip":
+    case "ring":
+      return {
+        ...led,
+        layout: {
+          kind,
+          // Switching between strip and ring keeps the direction.
+          ...((layout.kind === "strip" || layout.kind === "ring") &&
+            layout.reversed && { reversed: true }),
+        },
+      };
+    case "matrix":
+      return layout.kind === "custom"
+        ? {
+            ...led,
+            count: layout.cols * layout.rows,
+            layout: { kind: "matrix", cols: layout.cols, rows: layout.rows },
+          }
+        : { ...led, layout: { kind: "matrix", cols: led.count, rows: 1 } };
+    case "custom": {
+      // A matrix keeps its grid (wired as rows, like before); anything else gets a roughly
+      // square grid filled row by row with the same number of LEDs.
+      const cols = layout.kind === "matrix" ? layout.cols : Math.ceil(Math.sqrt(led.count));
+      const rows = layout.kind === "matrix" ? layout.rows : Math.ceil(led.count / cols);
+      const segments = fillRows(cols, rows, led.count);
+      return {
+        ...led,
+        count: segmentsLedCount(segments),
+        layout: { kind: "custom", cols, rows, segments },
+      };
+    }
+  }
+}
+
+/** New grid size for a custom matrix: segments are cut at the new edge. */
+function resizeCustom(led: LedConfig, layout: CustomLayout, cols: number, rows: number): LedConfig {
+  let segments = clipSegments(layout.segments, cols, rows);
+  // Nothing left inside the grid: start again from plain rows rather than an empty wiring.
+  if (segments.length === 0) segments = rowSegments(cols, rows);
+  return {
+    ...led,
+    count: segmentsLedCount(segments),
+    layout: { ...layout, cols, rows, segments },
+  };
+}
 
 /**
  * Whole-number field with ▲/▼ steppers. Typing is only applied when the field loses focus or on
@@ -153,59 +225,47 @@ export function LedSettings({
           Layout
           <select
             value={layout.kind}
-            onChange={(e) =>
-              onChange(
-                e.target.value === "matrix"
-                  ? { ...led, layout: { kind: "matrix", cols: led.count, rows: 1 } }
-                  : {
-                      ...led,
-                      layout: {
-                        kind: e.target.value === "ring" ? "ring" : "strip",
-                        // Switching between strip and ring keeps the direction.
-                        ...(layout.kind !== "matrix" && layout.reversed && { reversed: true }),
-                      },
-                    },
-              )
-            }
+            onChange={(e) => onChange(withLayoutKind(led, e.target.value as LayoutKind))}
           >
             <option value="strip">Strip</option>
             <option value="ring">Ring</option>
             <option value="matrix">Matrix</option>
+            <option value="custom">Custom matrix</option>
           </select>
         </label>
-        {layout.kind !== "matrix" && (
-          <NumberField
-            label="LEDs"
-            value={led.count}
-            min={1}
-            max={MAX_LEDS}
-            onCommit={(count) => onChange({ ...led, count })}
-          />
-        )}
-        {layout.kind !== "matrix" && (
-          <div className="led-field">
-            <span id="led-direction">Direction</span>
-            <div className="segmented led-direction" role="group" aria-labelledby="led-direction">
-              {DIRECTIONS[layout.kind].map(({ reversed, label, Icon }) => (
-                <button
-                  key={label}
-                  type="button"
-                  className="segment"
-                  aria-label={label}
-                  title={label}
-                  aria-pressed={!!layout.reversed === reversed}
-                  onClick={() =>
-                    onChange({
-                      ...led,
-                      layout: reversed ? { kind: layout.kind, reversed } : { kind: layout.kind },
-                    })
-                  }
-                >
-                  <Icon size={16} aria-hidden />
-                </button>
-              ))}
+        {(layout.kind === "strip" || layout.kind === "ring") && (
+          <>
+            <NumberField
+              label="LEDs"
+              value={led.count}
+              min={1}
+              max={MAX_LEDS}
+              onCommit={(count) => onChange({ ...led, count })}
+            />
+            <div className="led-field">
+              <span id="led-direction">Direction</span>
+              <div className="segmented led-direction" role="group" aria-labelledby="led-direction">
+                {DIRECTIONS[layout.kind].map(({ reversed, label, Icon }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="segment"
+                    aria-label={label}
+                    title={label}
+                    aria-pressed={!!layout.reversed === reversed}
+                    onClick={() =>
+                      onChange({
+                        ...led,
+                        layout: reversed ? { kind: layout.kind, reversed } : { kind: layout.kind },
+                      })
+                    }
+                  >
+                    <Icon size={16} aria-hidden />
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
         {layout.kind === "matrix" && (
           <>
@@ -227,6 +287,30 @@ export function LedSettings({
                 onChange({ ...led, count: layout.cols * rows, layout: { ...layout, rows } })
               }
             />
+          </>
+        )}
+        {layout.kind === "custom" && (
+          <>
+            <NumberField
+              label="Columns"
+              value={layout.cols}
+              min={1}
+              max={Math.floor(MAX_LEDS / layout.rows)}
+              onCommit={(cols) => onChange(resizeCustom(led, layout, cols, layout.rows))}
+            />
+            <NumberField
+              label="Rows"
+              value={layout.rows}
+              min={1}
+              max={Math.floor(MAX_LEDS / layout.cols)}
+              onCommit={(rows) => onChange(resizeCustom(led, layout, layout.cols, rows))}
+            />
+            <div className="led-field">
+              <span id="led-custom-count">LEDs</span>
+              <output className="led-output" aria-labelledby="led-custom-count">
+                {led.count}
+              </output>
+            </div>
           </>
         )}
       </div>

@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type PointerEvent,
+  type ReactNode,
   type Ref,
 } from "react";
 
@@ -34,6 +35,8 @@ export function Matrix({
   rows,
   ring = false,
   reversed = false,
+  grid,
+  overlay,
   zoom,
   ref,
 }: {
@@ -41,14 +44,21 @@ export function Matrix({
   rows: number;
   ring?: boolean;
   reversed?: boolean;
+  /**
+   * Which LED each matrix cell shows: entry `row * cols + col` is an LED index, or -1 for a cell
+   * without one. Without it the LEDs fill the matrix row by row.
+   */
+  grid?: Int32Array;
+  /** Drawn over the LEDs, at their size and scale (the wiring of a custom matrix). */
+  overlay?: ReactNode;
   zoom: Zoom;
   ref?: Ref<MatrixHandle>;
 }) {
   const element = useRef<((NeopixelMatrixElement | LEDRingElement) & HTMLElement) | null>(null);
   const stage = useRef<HTMLDivElement>(null);
   // Frames can arrive between renders, so they read the latest size from here.
-  const size = useRef({ cols, rows, ring, reversed });
-  size.current = { cols, rows, ring, reversed };
+  const size = useRef({ cols, rows, ring, reversed, grid });
+  size.current = { cols, rows, ring, reversed, grid };
   const lastPixels = useRef<ArrayLike<number>>([]);
 
   // The element draws an SVG with a fixed size in mm, so scaling is a transform on a wrapper
@@ -94,7 +104,7 @@ export function Matrix({
     lastPixels.current = pixels;
     const el = element.current;
     if (!el) return;
-    const { cols, rows, ring, reversed } = size.current;
+    const { cols, rows, ring, reversed, grid } = size.current;
     const color = (value: number) => ({
       b: (value & 0xff) / 255,
       r: ((value >> 8) & 0xff) / 255,
@@ -116,7 +126,8 @@ export function Matrix({
     }
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        el.setPixel(row, col, color(pixels[row * cols + col] ?? 0));
+        const index = grid ? grid[row * cols + col] : row * cols + col;
+        el.setPixel(row, col, color(index >= 0 ? (pixels[index] ?? 0) : 0));
       }
     }
   };
@@ -172,7 +183,7 @@ export function Matrix({
   // show the last frame again (also while paused).
   useEffect(() => {
     void element.current?.updateComplete.then(() => paintRef.current(lastPixels.current));
-  }, [cols, rows, ring, reversed]);
+  }, [cols, rows, ring, reversed, grid]);
 
   return (
     <div
@@ -199,6 +210,7 @@ export function Matrix({
           ) : (
             <wokwi-neopixel-matrix key="matrix" ref={element} cols={cols} rows={rows} />
           )}
+          {overlay}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { MAX_DATA_PIN, MIN_DATA_PIN } from "./pins.ts";
+import { segmentsLedCount, validateSegments, type CustomLayout } from "./wiring.ts";
 
 export const MAX_LEDS = 4096;
 
@@ -12,11 +13,14 @@ export interface LedConfig {
   /**
    * How the LEDs are drawn. A strip runs left to right, a ring is `count` LEDs on a circle with
    * LED 0 at the top, clockwise. `reversed` flips that: right to left, counter-clockwise.
+   * A custom matrix places strip segments on a `cols`×`rows` grid (see `wiring.ts`); its LED count
+   * is the total length of the segments.
    */
   layout:
     | { kind: "strip"; reversed?: boolean }
     | { kind: "ring"; reversed?: boolean }
-    | { kind: "matrix"; cols: number; rows: number; serpentine?: boolean };
+    | { kind: "matrix"; cols: number; rows: number; serpentine?: boolean }
+    | CustomLayout;
   /** Arduino pin number of the data line, D2..D13. */
   dataPin: number;
   colorOrder: ColorOrder;
@@ -56,7 +60,7 @@ export function wireToGrb(word: number, order: ColorOrder): number {
  * the index in row order). Only drawing uses it: frames stay in wire order.
  */
 export function displayPosition(layout: LedConfig["layout"], count: number, i: number): number {
-  if (layout.kind === "matrix" || !layout.reversed) return i;
+  if (layout.kind === "matrix" || layout.kind === "custom" || !layout.reversed) return i;
   // A reversed ring keeps LED 0 at the top and goes the other way round.
   return layout.kind === "ring" ? (count - i) % count : count - 1 - i;
 }
@@ -97,8 +101,28 @@ export function validateLedConfig(value: unknown): LedConfig {
           : { kind: "matrix", cols, rows, serpentine: !!serpentine },
     };
   }
+  if (layout?.kind === "custom") {
+    const { cols, rows } = layout;
+    if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1) {
+      throw new RangeError("Matrix columns and rows must be positive integers");
+    }
+    if (cols * rows > MAX_LEDS) {
+      throw new RangeError(`Matrix columns × rows must be at most ${MAX_LEDS}`);
+    }
+    const segments = validateSegments(layout.segments, cols, rows);
+    if (segmentsLedCount(segments) !== count) {
+      throw new RangeError("The wiring segments must add up to the LED count");
+    }
+    return {
+      count,
+      dataPin,
+      colorOrder,
+      chip: "WS2812B",
+      layout: { kind: "custom", cols, rows, segments },
+    };
+  }
   if (layout?.kind !== "strip" && layout?.kind !== "ring") {
-    throw new RangeError("Layout must be a strip, a ring or a matrix");
+    throw new RangeError("Layout must be a strip, a ring, a matrix or a custom matrix");
   }
   const { reversed } = layout;
   if (reversed !== undefined && typeof reversed !== "boolean") {

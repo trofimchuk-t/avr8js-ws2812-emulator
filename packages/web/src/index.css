@@ -990,8 +990,114 @@ wokwi-led-ring {
 }
 
 .stage-scale {
+  position: relative;
   transform-origin: 0 0;
   width: max-content;
+}
+
+/* ---------- custom matrix wiring (drawn over the matrix, the stage is dark in both themes) ---------- */
+.wiring {
+  position: absolute;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  outline: none;
+}
+
+.wiring.editing {
+  pointer-events: auto;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.wiring.editing:focus-visible {
+  outline: 0.4px solid var(--focus);
+}
+
+/* Cells without an LED: covered, so they do not read as LEDs that are off. */
+.wiring-empty {
+  fill: var(--stage);
+  fill-opacity: 0.82;
+}
+
+.wiring.editing .wiring-empty {
+  stroke: #5c6573;
+  stroke-width: 0.15;
+  stroke-dasharray: 0.5 0.4;
+}
+
+.wiring-segment line {
+  stroke: #2fd4cc;
+  stroke-width: 0.55;
+  stroke-linecap: round;
+}
+
+.wiring-segment circle,
+.wiring-segment polygon {
+  fill: #2fd4cc;
+}
+
+.wiring-segment.selected line {
+  stroke: #ffb020;
+  stroke-width: 0.8;
+}
+
+.wiring-segment.selected circle,
+.wiring-segment.selected polygon {
+  fill: #ffb020;
+}
+
+.wiring-segment.draft line {
+  stroke: #ffffff;
+  stroke-dasharray: 0.8 0.5;
+}
+
+.wiring-segment.draft circle,
+.wiring-segment.draft polygon {
+  fill: #ffffff;
+}
+
+/* How the data gets from the end of one segment to the start of the next. */
+.wiring-link {
+  stroke: #c8ced8;
+  stroke-width: 0.25;
+  stroke-dasharray: 0.6 0.6;
+  opacity: 0.7;
+}
+
+.wiring-index {
+  font: 600 1.25px var(--font-mono);
+  fill: #ffffff;
+  stroke: #000000;
+  stroke-width: 0.3;
+  paint-order: stroke;
+  pointer-events: none;
+  user-select: none;
+}
+
+.wiring-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+  font-size: var(--text-sm);
+}
+
+.wiring-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.wiring-count {
+  margin-right: 4px;
+  color: var(--text);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .hardware-body {
@@ -1035,6 +1141,18 @@ wokwi-led-ring {
   color: var(--text);
   width: 100%;
   min-width: 0;
+}
+
+/* Read-only value (the LED count of a custom matrix), sized like an input. */
+.led-output {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+  font-size: var(--text-md);
+  color: var(--text);
 }
 
 /* Same height as the other fields; the buttons share the width. */

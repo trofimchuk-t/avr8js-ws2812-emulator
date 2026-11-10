@@ -8,7 +8,8 @@ ARG FASTLED_VERSION=3.6.0
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 
 RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
     | BINDIR=/usr/local/bin sh -s ${ARDUINO_CLI_VERSION}
@@ -27,11 +28,13 @@ COPY --chown=builder package.json yarn.lock ./
 COPY --chown=builder packages/engine/package.json ./packages/engine/
 COPY --chown=builder packages/web/package.json ./packages/web/
 COPY --chown=builder packages/server/package.json ./packages/server/
-RUN corepack enable && yarn install --frozen-lockfile --production
+RUN yarn install --frozen-lockfile --production
 COPY --chown=builder packages/engine ./packages/engine
 COPY --chown=builder packages/server ./packages/server
 
 # Projects (SQLite + sketch files) live here; mount a volume to keep them.
+# Created here so the volume is owned by builder, not root.
+RUN mkdir -p /home/builder/data
 ENV HOST=0.0.0.0 PORT=3001 DATA_DIR=/home/builder/data
 VOLUME /home/builder/data
 EXPOSE 3001

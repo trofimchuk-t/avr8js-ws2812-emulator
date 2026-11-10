@@ -35,4 +35,15 @@ Alternatively, build the `Dockerfile`, which contains the same toolchain.
 
 It will run a local development server, and you can access the project at [http://localhost:3000/](http://localhost:3000/) (the default port is 3000 unless otherwise configured).
 
+### Docker deployment
+
+`compose.yaml` runs the whole app: `server` (the `Dockerfile`, compile server with the pinned toolchain) and `web` (`Dockerfile.web`, the built frontend served by nginx, which proxies `/api` to `server`). Projects are kept in the `projects` volume.
+
+```sh
+docker compose up -d --build          # http://<host>:8080
+WEB_PORT=80 docker compose up -d      # another port
+```
+
+Update with `git pull && docker compose up -d --build`. Back up the projects with `docker compose run --rm --user root -v "$PWD":/backup server tar czf /backup/projects.tgz -C /home/builder/data .`.
+
 ![Screenshot of the AVR8js NeoPixels + FastLED Demo](screenshot.png)

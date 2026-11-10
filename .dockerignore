@@ -1,3 +1,5 @@
-node_modules
-dist
+**/node_modules
+**/dist
 .git
+# Local projects (SQLite + sketches) must never end up in an image.
+**/data

@@ -33,6 +33,21 @@ yarn start
 
 Alternatively, build the `Dockerfile`, which contains the same toolchain.
 
+The server is configured through environment variables (see `packages/server/config.ts`):
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MAX_SKETCH_FILES` | `64` | Files in one project |
+| `MAX_SKETCH_BYTES` | `1048576` (1 MiB) | Total size of a project's files, in UTF-8 bytes |
+| `BUILD_TIMEOUT_MS` | `60000` | Time limit of one build |
+| `MAX_CONCURRENT_BUILDS` | `2` | Builds that run at once |
+| `MAX_QUEUED_BUILDS` | `8` | Builds waiting in the queue, more get HTTP 503 |
+| `CACHE_ENTRIES` | `200` | Cached build results |
+| `DATA_DIR` | `./data` | Projects database and sketch files |
+| `ARDUINO_CLI` | `arduino-cli` | Path to the CLI |
+
+The request body limit follows from `MAX_SKETCH_BYTES` and `MAX_SKETCH_FILES`. Behind nginx, `client_max_body_size` in `deploy/nginx.conf` (16 MB) must stay above it.
+
 It will run a local development server, and you can access the project at [http://localhost:3000/](http://localhost:3000/) (the default port is 3000 unless otherwise configured).
 
 ### Docker deployment
@@ -42,6 +57,7 @@ It will run a local development server, and you can access the project at [http:
 ```sh
 docker compose up -d --build          # http://<host>:8080
 WEB_PORT=80 docker compose up -d      # another port
+MAX_SKETCH_FILES=128 MAX_SKETCH_BYTES=2097152 docker compose up -d   # other project limits
 ```
 
 Update with `git pull && docker compose up -d --build`. Back up the projects with `docker compose run --rm --user root -v "$PWD":/backup server tar czf /backup/projects.tgz -C /home/builder/data .`.

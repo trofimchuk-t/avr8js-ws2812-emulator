@@ -20,8 +20,10 @@ export interface ImportedProject extends ProjectDraft {
 }
 
 const MANIFEST = "project.json";
-const MAX_ENTRY_BYTES = 256 * 1024;
-const MAX_ENTRIES = 64;
+// Guards against zip bombs only. The real limits are the server's MAX_SKETCH_FILES and
+// MAX_SKETCH_BYTES, and its error message is shown when a project exceeds them.
+const MAX_ENTRY_BYTES = 16 * 1024 * 1024;
+const MAX_ENTRIES = 1024;
 
 export interface ExportedFile {
   filename: string;
@@ -43,11 +45,13 @@ export function exportProject(project: ProjectDraft): ExportedFile {
   return { filename: `${base}.zip`, mime: "application/zip", data: zipSync(entries) };
 }
 
-function pickMain(files: SketchFile[], wanted: unknown) {
+/** `folder` is the sketch folder name; Arduino's main .ino is the one named after it. */
+function pickMain(files: SketchFile[], wanted: unknown, folder: string) {
   const inos = files.filter((f) => f.name.endsWith(".ino"));
   if (inos.length === 0) throw new Error("The archive has no .ino file");
   const chosen =
     inos.find((f) => f.name === wanted) ??
+    inos.find((f) => f.name.toLowerCase() === `${folder.toLowerCase()}.ino`) ??
     inos.find((f) => /\bvoid\s+setup\s*\(/.test(f.content)) ??
     inos[0];
   return chosen.name;
@@ -74,14 +78,17 @@ export function importProject(filename: string, bytes: Uint8Array): ImportedProj
     throw new Error("Cannot read the zip file");
   }
   const warnings: string[] = [];
+  let folder = title;
   // Archives made by other tools often wrap everything in one folder.
   let paths = Object.keys(entries).filter((p) => !p.endsWith("/") && !p.startsWith("__MACOSX/"));
   const tops = new Set(paths.map((p) => p.split("/")[0]));
   if (tops.size === 1 && paths.every((p) => p.includes("/"))) {
-    const prefix = [...tops][0] + "/";
+    folder = [...tops][0];
+    const prefix = folder + "/";
     entries = Object.fromEntries(paths.map((p) => [p.slice(prefix.length), entries[p]]));
     paths = Object.keys(entries);
   }
+  if (paths.length > MAX_ENTRIES) throw new Error("Too many files in the archive");
   const files: SketchFile[] = [];
   for (const path of paths.sort()) {
     if (path === MANIFEST) continue;
@@ -91,7 +98,6 @@ export function importProject(filename: string, bytes: Uint8Array): ImportedProj
     }
     files.push({ name: path, content: strFromU8(entries[path]) });
   }
-  if (files.length > MAX_ENTRIES) throw new Error("Too many files in the archive");
 
   let manifest: { name?: unknown; led?: unknown; main?: unknown } = {};
   if (entries[MANIFEST]) {
@@ -101,7 +107,7 @@ export function importProject(filename: string, bytes: Uint8Array): ImportedProj
       warnings.push(`Ignored an unreadable ${MANIFEST}`);
     }
   }
-  const main = pickMain(files, manifest.main);
+  const main = pickMain(files, manifest.main, folder);
   let led: LedConfig | undefined;
   if (manifest.led !== undefined) {
     try {

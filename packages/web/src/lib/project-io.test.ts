@@ -63,6 +63,15 @@ describe("export / import", () => {
     expect(importProject("p.zip", zip).main).toBe("b.ino");
   });
 
+  it("prefers the .ino named after the sketch folder, as the Arduino IDE does", () => {
+    const zip = zipSync({
+      "garland/1main.ino": strToU8(sketch(3, 5)),
+      "garland/garland.ino": strToU8("#define NUM_LEDS 5"),
+      "garland/fx.h": strToU8(""),
+    });
+    expect(importProject("download (1).zip", zip).main).toBe("garland.ino");
+  });
+
   it("ignores an invalid manifest LED config and rejects bad files", () => {
     const zip = zipSync({
       "a.ino": strToU8(sketch(4, 9)),

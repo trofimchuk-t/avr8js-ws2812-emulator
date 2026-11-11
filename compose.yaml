@@ -3,6 +3,9 @@ services:
     image: ledsim-server:latest
     build: .
     restart: unless-stopped
+    environment:
+      MAX_SKETCH_FILES: ${MAX_SKETCH_FILES:-64}
+      MAX_SKETCH_BYTES: ${MAX_SKETCH_BYTES:-1048576}
     volumes:
       - projects:/home/builder/data
     healthcheck:

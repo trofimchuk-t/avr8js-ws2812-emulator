@@ -143,7 +143,7 @@ Fastify, запуск `yarn server` (`node main.ts`, Node виконує `.ts` �
 | `main.ts` | Читає конфіг, перевіряє тулчейн (`verifyToolchain`), слухає `HOST`/`PORT` (за замовчуванням `127.0.0.1:3001`). |
 | `app.ts` | `POST /api/compile` (`{ sketch }` → `{ stdout, stderr, hex }`), `GET /api/health`. Помилки: 400 (порожній `sketch`), 413 (завеликий), 503 з `Retry-After` (черга повна). |
 | `compiler.ts` | `Compiler`: `arduino-cli compile` через `execFile` (масив аргументів, без shell) у тимчасовому каталозі, який видаляється після збірки. Кеш за sha256(тулчейн + скетч), спільні збірки для однакових запитів, чистка тимчасових шляхів у виводі. Помилка компіляції — відповідь 200 з порожнім `hex`. |
-| `config.ts` | Закріплений тулчейн (`arduino:avr:uno`, ядро `arduino:avr@1.8.8`, FastLED 3.6.0) і ліміти з env: `MAX_SKETCH_BYTES`, `BUILD_TIMEOUT_MS`, `MAX_CONCURRENT_BUILDS`, `MAX_QUEUED_BUILDS`, `CACHE_ENTRIES`, `ARDUINO_CLI`. |
+| `config.ts` | Закріплений тулчейн (`arduino:avr:uno`, ядро `arduino:avr@1.8.8`, FastLED 3.6.0) і ліміти з env: `MAX_SKETCH_FILES` (64), `MAX_SKETCH_BYTES` (1 MiB), `BUILD_TIMEOUT_MS`, `MAX_CONCURRENT_BUILDS`, `MAX_QUEUED_BUILDS`, `CACHE_ENTRIES`, `ARDUINO_CLI`. |
 | `semaphore.ts` | `BuildQueue` з обмеженою чергою, `QueueFullError`. |
 | `server.test.ts` | Тести черги, компілятора, HTTP-шару; тест із реальним `arduino-cli` пропускається, якщо CLI немає. |
 

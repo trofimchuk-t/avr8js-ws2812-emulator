@@ -1,4 +1,5 @@
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createLedConfig } from "@avr8js-ws2812/engine";
@@ -75,6 +76,22 @@ describe("SqliteProjectRepository", () => {
     expect(await repo.delete(first.id)).toBe(true);
     expect(await repo.delete(first.id)).toBe(false);
     expect(await repo.update("nope", { name: "x" })).toBeNull();
+  });
+});
+
+describe("migrations", () => {
+  it("reads projects saved before the serial column existed with the default settings", async () => {
+    const path = join(mkdtempSync(join(tmpdir(), "ws2812-db-")), "projects.db");
+    const old = new DatabaseSync(path);
+    old.exec(readFileSync(new URL("./migrations/001-init.sql", import.meta.url), "utf8"));
+    old.exec("PRAGMA user_version = 1");
+    old
+      .prepare("INSERT INTO projects VALUES ('p1', 'u', 'old', ?, NULL, 'r1', 'a.ino', 't', 't')")
+      .run(JSON.stringify(createLedConfig()));
+    old.close();
+    const repo = new SqliteProjectRepository(path);
+    expect((await repo.get("p1"))!.serial).toEqual({ lineEnding: "lf" });
+    repo.close();
   });
 });
 
@@ -205,6 +222,29 @@ describe("/api/projects", () => {
     expect((await put({ files: [] })).statusCode).toBe(400);
     // Nothing changed by the failed updates.
     expect((await app.inject({ url: `/api/projects/${id}` })).json().name).toBe("Demo");
+  });
+
+  it("stores the serial terminal settings", async () => {
+    const { app } = setup();
+    const created = (
+      await app.inject({ method: "POST", url: "/api/projects", payload: body() })
+    ).json();
+    expect(created.serial).toEqual({ lineEnding: "lf" });
+    const url = `/api/projects/${created.id}`;
+    const put = (payload: object) => app.inject({ method: "PUT", url, payload });
+    expect((await put({ serial: { lineEnding: "crlf" } })).json().serial).toEqual({
+      lineEnding: "crlf",
+    });
+    expect((await put({ serial: { lineEnding: "\n" } })).statusCode).toBe(400);
+    expect((await put({ name: "Other" })).json().serial).toEqual({ lineEnding: "crlf" });
+    const list = (await app.inject({ url: "/api/projects" })).json();
+    expect(list[0].serial).toEqual({ lineEnding: "crlf" });
+    const withSerial = await app.inject({
+      method: "POST",
+      url: "/api/projects",
+      payload: body({ serial: { lineEnding: "none" } }),
+    });
+    expect(withSerial.json().serial).toEqual({ lineEnding: "none" });
   });
 
   it("returns 404 for unknown projects", async () => {

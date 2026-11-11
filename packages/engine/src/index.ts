@@ -33,3 +33,10 @@ export { parseSketchConfig } from "./sketch-config.ts";
 export type { SketchConfigResult } from "./sketch-config.ts";
 export { SketchFilesError, isValidSketchFileName, validateSketchFiles } from "./sketch-files.ts";
 export type { SketchFile, SketchFileLimits, ValidatedSketch } from "./sketch-files.ts";
+export {
+  DEFAULT_SERIAL_CONFIG,
+  LINE_ENDINGS,
+  LINE_ENDING_TEXT,
+  validateSerialConfig,
+} from "./serial-config.ts";
+export type { LineEnding, SerialConfig } from "./serial-config.ts";

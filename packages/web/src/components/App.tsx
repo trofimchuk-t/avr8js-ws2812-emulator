@@ -121,6 +121,7 @@ function Projects() {
           await add({
             name: `${source.name} (copy)`.slice(0, 100),
             led: source.led,
+            serial: source.serial,
             files: source.files,
             main: source.mainFile,
           });
@@ -132,6 +133,7 @@ function Projects() {
             exportProject({
               name: source.name,
               led: source.led,
+              serial: source.serial,
               files: source.files,
               main: source.mainFile,
             }),

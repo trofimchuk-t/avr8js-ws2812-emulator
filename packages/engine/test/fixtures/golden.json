@@ -88,5 +88,23 @@
       "2000": "eb8e69eb64c8a44d"
     },
     "serial": ""
+  },
+  "serial_commands": {
+    "led": {
+      "count": 16,
+      "layout": {
+        "kind": "strip"
+      },
+      "dataPin": 6,
+      "colorOrder": "GRB",
+      "chip": "WS2812B"
+    },
+    "frames": {
+      "100": "f5a5fd42d16a2030",
+      "500": "f5a5fd42d16a2030",
+      "1000": "f5a5fd42d16a2030",
+      "2000": "f5a5fd42d16a2030"
+    },
+    "serial": "Commands: red, green, blue, off, rainbow, brightness <0-255>, echo <text>, help\r\n"
   }
 }

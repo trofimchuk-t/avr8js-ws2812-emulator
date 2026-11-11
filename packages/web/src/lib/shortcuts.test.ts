@@ -22,6 +22,13 @@ describe("matchShortcut", () => {
     expect(matchShortcut(key(","))).toBe("settings");
   });
 
+  it("matches Ctrl+` by key code on every platform and layout", () => {
+    const ctrl = { [mod]: false, ctrlKey: true };
+    expect(matchShortcut({ ...key("ё", ctrl), code: "Backquote" })).toBe("terminal");
+    expect(matchShortcut({ ...key("`", ctrl), code: "Backquote", shiftKey: true })).toBeNull();
+    if (isMac) expect(matchShortcut({ ...key("`"), code: "Backquote" })).toBeNull();
+  });
+
   it("ignores plain keys, Alt combinations and unknown keys", () => {
     expect(matchShortcut(key("Enter", { [mod]: false }))).toBeNull();
     expect(matchShortcut(key("s", { altKey: true }))).toBeNull();

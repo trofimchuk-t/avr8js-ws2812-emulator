@@ -1,4 +1,4 @@
-import type { LedConfig, SketchFile } from "@avr8js-ws2812/engine";
+import type { LedConfig, SerialConfig, SketchFile } from "@avr8js-ws2812/engine";
 
 /** Metadata and configuration; the sketch files live in a `SketchStorage`. */
 export interface Project {
@@ -6,6 +6,7 @@ export interface Project {
   ownerId: string;
   name: string;
   led: LedConfig;
+  serial: SerialConfig;
   /** Reserved for the visual editor. */
   visual?: unknown;
   /** Key under which the `SketchStorage` finds the files. */
@@ -16,7 +17,9 @@ export interface Project {
   updatedAt: string;
 }
 
-export type NewProject = Omit<Project, "id" | "createdAt" | "updatedAt">;
+export type NewProject = Omit<Project, "id" | "createdAt" | "updatedAt" | "serial"> & {
+  serial?: SerialConfig;
+};
 export type ProjectPatch = Partial<Omit<Project, "id" | "ownerId" | "createdAt" | "updatedAt">>;
 
 export interface ProjectRepository {

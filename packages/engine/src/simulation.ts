@@ -1,7 +1,10 @@
+import { usart0Config } from "avr8js";
 import { AVRRunner, CPU_HZ } from "./execute.ts";
 import { WS2812Controller } from "./ws2812.ts";
 import { wireToGrb, type LedConfig } from "./led-config.ts";
 import { arduinoPinToPort } from "./pins.ts";
+
+const UCSRA_RXC = 0x80;
 
 /** Cycles between frame checks, progress callbacks and event-loop yields (about 31 ms). */
 const TICK_CYCLES = 500_000;
@@ -16,8 +19,11 @@ export interface SimulationOptions {
    * `nanos` is the simulated time.
    */
   onFrame?: (pixels: Uint32Array, nanos: number) => void;
-  /** Called for every byte the sketch writes to Serial, as a one-character string. */
-  onSerial?: (char: string) => void;
+  /**
+   * Called for every byte the sketch writes to Serial, as a one-character string (Latin-1, so
+   * every byte value maps to one character), with the simulated time.
+   */
+  onSerial?: (char: string, nanos: number) => void;
   /** Called about every 31 ms of simulated time while running, with the simulated time. */
   onProgress?: (nanos: number) => void;
 }
@@ -45,6 +51,15 @@ export interface Simulation {
    * runs as fast as the host allows. The host may be too slow to reach the target.
    */
   setSpeed(multiplier: number): void;
+  /**
+   * Queues bytes for the sketch's Serial input (RX of USART0). A string is sent as UTF-8. Bytes
+   * arrive at the configured baud rate, and the next byte is only delivered after the sketch has
+   * read the previous one from UDR0, so nothing is lost while interrupts are off (for example in
+   * `FastLED.show()`). Bytes wait in the queue until the sketch calls `Serial.begin()`.
+   */
+  sendSerial(data: string | Uint8Array): void;
+  /** Bytes queued by `sendSerial` that the sketch has not received yet. */
+  readonly serialPending: number;
 }
 
 export function cyclesToNanos(cycles: number) {
@@ -67,6 +82,12 @@ class SimulationImpl implements Simulation {
   /** Real-time pacing anchor: wall clock and CPU cycles at the last (re)start or speed change. */
   private anchorWall = 0;
   private anchorCycles = 0;
+  /** Bytes waiting for the receiver; `rxHead` is the next one to send. */
+  private rxQueue: number[] = [];
+  private rxHead = 0;
+  /** A byte has been delivered to UDR0 and the sketch has not read it yet. */
+  private rxUnread = false;
+  private rxLast = 0;
 
   constructor(options: SimulationOptions) {
     this.options = options;
@@ -82,8 +103,37 @@ class SimulationImpl implements Simulation {
     ioPort.addListener(() => {
       this.controller.feedValue(ioPort.pinState(bit), this.nanos);
     });
-    runner.usart.onByteTransmit = (value: number) => {
-      options.onSerial?.(String.fromCharCode(value));
+    const usart = runner.usart;
+    usart.onByteTransmit = (value: number) => {
+      options.onSerial?.(String.fromCharCode(value), this.nanos);
+    };
+    usart.onRxComplete = () => {
+      this.rxUnread = true;
+    };
+    // Enabling the receiver (Serial.begin) lets queued bytes through.
+    usart.onConfigurationChange = () => this.pumpSerial();
+    const cpu = runner.cpu;
+    const { UDR, UCSRA, UCSRB } = usart0Config;
+    const readUdr = cpu.readHooks[UDR];
+    cpu.readHooks[UDR] = (addr) => {
+      const value = readUdr(addr);
+      this.rxUnread = false;
+      this.pumpSerial();
+      return value;
+    };
+    // avr8js clears RXC on every UCSR0B write that keeps the receiver on, and Serial.write()
+    // toggles UDRIE all the time, so an unread byte would vanish. The real chip keeps it.
+    const writeUcsrb = cpu.writeHooks[UCSRB];
+    cpu.writeHooks[UCSRB] = (value, oldValue, addr, mask) => {
+      const result = writeUcsrb(value, oldValue, addr, mask);
+      if (this.rxUnread && !(cpu.data[UCSRA] & UCSRA_RXC)) {
+        if (usart.rxEnable) {
+          usart.writeByte(this.rxLast, true);
+        } else {
+          this.rxUnread = false;
+        }
+      }
+      return result;
     };
   }
 
@@ -108,6 +158,8 @@ class SimulationImpl implements Simulation {
 
   stop() {
     this._state = "stopped";
+    this.rxQueue = [];
+    this.rxHead = 0;
   }
 
   step(cycles = 1) {
@@ -121,6 +173,30 @@ class SimulationImpl implements Simulation {
     if (!(multiplier > 0)) throw new RangeError("Speed must be a positive number");
     this.speed = multiplier;
     this.resetAnchor();
+  }
+
+  get serialPending() {
+    return this.rxQueue.length - this.rxHead;
+  }
+
+  sendSerial(data: string | Uint8Array) {
+    if (this._state === "stopped") return;
+    const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+    for (const byte of bytes) this.rxQueue.push(byte);
+    this.pumpSerial();
+  }
+
+  /** Hands the next queued byte to the receiver if it is free and the last byte was read. */
+  private pumpSerial() {
+    if (this.rxHead >= this.rxQueue.length || this.rxUnread) return;
+    const usart = this.runner.usart;
+    if (usart.rxBusy || !usart.rxEnable) return;
+    this.rxLast = this.rxQueue[this.rxHead++];
+    usart.writeByte(this.rxLast);
+    if (this.rxHead === this.rxQueue.length) {
+      this.rxQueue = [];
+      this.rxHead = 0;
+    }
   }
 
   private resetAnchor() {

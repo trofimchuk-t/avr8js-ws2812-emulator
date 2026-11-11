@@ -1,4 +1,4 @@
-import type { LedConfig, SketchFile } from "@avr8js-ws2812/engine";
+import type { LedConfig, SerialConfig, SketchFile } from "@avr8js-ws2812/engine";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getProject, updateProject, type ProjectSummary } from "../lib/api";
 import { errorText } from "../lib/errors";
@@ -8,6 +8,7 @@ const SAVE_DELAY_MS = 800;
 export interface Draft {
   name: string;
   led: LedConfig;
+  serial: SerialConfig;
   files: SketchFile[];
   main: string;
 }
@@ -19,6 +20,7 @@ function payloadOf(draft: Draft) {
   return {
     name: draft.name.trim() || "Untitled",
     led: draft.led,
+    serial: draft.serial,
     files: draft.files,
     main: draft.main,
   };
@@ -50,6 +52,7 @@ export function useProjectDraft(id: string | null, onSaved: (project: ProjectSum
         const loaded = {
           name: project.name,
           led: project.led,
+          serial: project.serial,
           files: project.files,
           main: project.mainFile,
         };

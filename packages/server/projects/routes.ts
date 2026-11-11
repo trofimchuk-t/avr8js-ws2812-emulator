@@ -1,4 +1,4 @@
-import { SketchFilesError, validateLedConfig } from "@avr8js-ws2812/engine";
+import { SketchFilesError, validateLedConfig, validateSerialConfig } from "@avr8js-ws2812/engine";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import type { ProjectService, ProjectWithFiles } from "./service.ts";
 import type { Project } from "./types.ts";
@@ -7,8 +7,8 @@ const MAX_NAME = 100;
 
 /** Public shape: no owner and no storage key. */
 function publicProject(project: Project) {
-  const { id, name, led, visual, mainFile, createdAt, updatedAt } = project;
-  return { id, name, led, visual, mainFile, createdAt, updatedAt };
+  const { id, name, led, serial, visual, mainFile, createdAt, updatedAt } = project;
+  return { id, name, led, serial, visual, mainFile, createdAt, updatedAt };
 }
 
 function publicWithFiles({ files, ...project }: ProjectWithFiles) {
@@ -39,6 +39,7 @@ export function registerProjectRoutes(app: FastifyInstance, projects: ProjectSer
       const project = await projects.create({
         name: parseName(body.name),
         led: validateLedConfig(body.led),
+        serial: body.serial === undefined ? undefined : validateSerialConfig(body.serial),
         files: body.files,
         main: body.main,
       });
@@ -59,6 +60,7 @@ export function registerProjectRoutes(app: FastifyInstance, projects: ProjectSer
       const project = await projects.update(request.params.id, {
         name: body.name === undefined ? undefined : parseName(body.name),
         led: body.led === undefined ? undefined : validateLedConfig(body.led),
+        serial: body.serial === undefined ? undefined : validateSerialConfig(body.serial),
         files: body.files,
         main: body.main,
       });

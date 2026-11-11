@@ -1650,3 +1650,79 @@ kbd {
   font-size: var(--text-sm);
   text-align: center;
 }
+
+/* ---------- serial terminal ---------- */
+
+.terminal {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.terminal .console-text {
+  min-height: 0;
+}
+
+.serial-line {
+  min-height: 1.5em;
+}
+
+.serial-in {
+  color: var(--text-muted);
+}
+
+.serial-stamp {
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.terminal-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding: 4px 6px 4px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.terminal-prompt {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.terminal-field {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.terminal-field:focus-visible {
+  outline: none;
+}
+
+.terminal-input:focus-within {
+  box-shadow: inset 0 2px 0 -1px var(--focus);
+}
+
+.terminal-field:disabled {
+  cursor: not-allowed;
+}
+
+.terminal-field::placeholder {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+}
+
+.select.terminal-ending {
+  height: 26px;
+  padding: 0 4px;
+  font-size: var(--text-sm);
+}

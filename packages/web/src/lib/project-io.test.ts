@@ -23,6 +23,7 @@ describe("export / import", () => {
     const project = {
       name: "Multi",
       led: createLedConfig({ count: 7, dataPin: 9, colorOrder: "RGB" }),
+      serial: { lineEnding: "crlf" as const },
       files: [
         { name: "main.ino", content: sketch(3, 50) },
         { name: "config.h", content: "#define X 1" },
@@ -32,7 +33,13 @@ describe("export / import", () => {
     const out = exportProject(project);
     expect(out.filename).toBe("Multi.zip");
     const back = importProject(out.filename, out.data);
-    expect(back).toMatchObject({ name: "Multi", led: project.led, main: "main.ino", warnings: [] });
+    expect(back).toMatchObject({
+      name: "Multi",
+      led: project.led,
+      serial: project.serial,
+      main: "main.ino",
+      warnings: [],
+    });
     expect(back.files).toEqual([project.files[1], project.files[0]]);
   });
 

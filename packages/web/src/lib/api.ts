@@ -1,4 +1,4 @@
-import type { LedConfig, SketchFile } from "@avr8js-ws2812/engine";
+import type { LedConfig, SerialConfig, SketchFile } from "@avr8js-ws2812/engine";
 
 export const baseUrl: string = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -9,6 +9,7 @@ export interface ProjectSummary {
   id: string;
   name: string;
   led: LedConfig;
+  serial: SerialConfig;
   mainFile: string;
   createdAt: string;
   updatedAt: string;
@@ -21,6 +22,8 @@ export interface Project extends ProjectSummary {
 export interface ProjectInput {
   name: string;
   led: LedConfig;
+  /** The server uses the default settings when it is missing. */
+  serial?: SerialConfig;
   files: SketchFile[];
   main: string;
 }

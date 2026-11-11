@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import {
   validateSketchFiles,
   type LedConfig,
+  type SerialConfig,
   type SketchFile,
   type SketchFileLimits,
 } from "@avr8js-ws2812/engine";
@@ -25,6 +26,7 @@ export interface Logger {
 export interface CreateInput {
   name: string;
   led: LedConfig;
+  serial?: SerialConfig;
   files: unknown;
   main?: unknown;
 }
@@ -32,6 +34,7 @@ export interface CreateInput {
 export interface UpdateInput {
   name?: string;
   led?: LedConfig;
+  serial?: SerialConfig;
   files?: unknown;
   main?: unknown;
 }
@@ -81,6 +84,7 @@ export class ProjectService {
         ownerId: this.ownerId,
         name: input.name,
         led: input.led,
+        serial: input.serial,
         sketchRef,
         mainFile: sketch.main,
       });
@@ -108,6 +112,7 @@ export class ProjectService {
     const updated = await this.repo.update(id, {
       ...(input.name !== undefined && { name: input.name }),
       ...(input.led !== undefined && { led: input.led }),
+      ...(input.serial !== undefined && { serial: input.serial }),
       mainFile,
     });
     return updated && { ...updated, files };

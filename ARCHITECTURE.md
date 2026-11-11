@@ -71,12 +71,19 @@ TypeScript, щоб Node міг запускати файли напряму (п�
 
 ```ts
 createSimulation({ hex, led: LedConfig, onFrame, onSerial, onProgress }): Simulation
-// Simulation: state, nanos, start(), pause(), stop(), step(cycles = 1), setSpeed(x)
+// Simulation: state, nanos, start(), pause(), stop(), step(cycles = 1), setSpeed(x),
+//             sendSerial(data), serialPending
 ```
 
 - `onFrame(pixels, nanos)`: копія масиву `Uint32Array`, слова **GRB** незалежно від
   `led.colorOrder` (G у бітах 16–23, R у 8–15, B у 0–7). Викликається лише коли декодер має зміни.
-- `onSerial(char)`: кожен байт USART як односимвольний рядок.
+- `onSerial(char, nanos)`: кожен байт USART як односимвольний рядок і симульований час.
+- `sendSerial(data)`: черга байтів на вхід USART0 (рядок кодується в UTF-8). Байти йдуть з
+  темпом бода, а наступний подається лише після того, як скетч прочитав попередній з UDR0, тож
+  нічого не губиться, поки переривання вимкнені (`FastLED.show()`). До `Serial.begin()` байти
+  чекають у черзі. avr8js скидає RXC при кожному записі в UCSR0B, а `Serial.write()` постійно
+  перемикає UDRIE, тому непрочитаний байт у такому разі подається знову (справжній чип RXC не
+  скидає). `serialPending` показує, скільки байтів ще в черзі.
 - `onProgress(nanos)`: приблизно раз на 31 мс симульованого часу.
 - `start()` запускає або поновлює після `pause()`. `pause()` зупиняє на найближчому
   yield і зберігає стан. `stop()` остаточний: для нового запуску створюється нова симуляція.

@@ -1,4 +1,9 @@
-import { createLedConfig, parseSketchConfig } from "@avr8js-ws2812/engine";
+import {
+  DEFAULT_SERIAL_CONFIG,
+  LINE_ENDING_TEXT,
+  createLedConfig,
+  parseSketchConfig,
+} from "@avr8js-ws2812/engine";
 import { Files, FolderKanban, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -12,6 +17,7 @@ import { useProjectDraft } from "../hooks/useProjectDraft";
 import { useSimulation } from "../hooks/useSimulation";
 import type { ProjectSummary } from "../lib/api";
 import { parseDiagnostics, type Diagnostic } from "../lib/diagnostics";
+import { pushHistory } from "../lib/serial";
 import { useSettings } from "../lib/settings";
 import { matchShortcut, type ShortcutId } from "../lib/shortcuts";
 import { joinSources } from "../lib/sketch-files";
@@ -59,6 +65,15 @@ export function ProjectEditor({
   const sim = useSimulation(matrix);
   const [active, setActive] = useState("");
   const [sideTab, setSideTab] = usePref<SideTab>("sideTab", "files");
+  // Command history of the serial terminal, per project (this component is keyed by id).
+  const [serialHistory, setSerialHistory] = usePref<string[]>(`serialHistory.${id}`, []);
+  const [terminalFocus, setTerminalFocus] = useState(0);
+  const lineEnding = (draft?.serial ?? DEFAULT_SERIAL_CONFIG).lineEnding;
+  const sendSerial = (command: string) => {
+    if (!sim.send(command, LINE_ENDING_TEXT[lineEnding])) return false;
+    setSerialHistory(pushHistory(serialHistory, command));
+    return true;
+  };
 
   // --- panel layout (remembered between reloads) ---
   const mainLayout = useDefaultLayout({ id: "layout.main", storage: layoutStorage });
@@ -125,6 +140,10 @@ export function ProjectEditor({
     save: () => void save(),
     sidebar: () => onRail(sideTab),
     console: toggleConsole,
+    terminal: () => {
+      consolePanel.current?.expand();
+      setTerminalFocus((n) => n + 1);
+    },
     settings: () => setDialog("settings"),
   };
   const handlersRef = useRef(handlers);
@@ -321,6 +340,17 @@ export function ProjectEditor({
                   diagnostics={diagnostics}
                   onJump={jumpTo}
                   serial={sim.serial}
+                  terminal={{
+                    canSend: sim.runState === "running" || sim.runState === "paused",
+                    onSend: sendSerial,
+                    lineEnding,
+                    onLineEndingChange: draft
+                      ? (ending) => update({ serial: { lineEnding: ending } })
+                      : undefined,
+                    history: serialHistory,
+                    projectName: draft?.name ?? "",
+                    focusRequest: terminalFocus,
+                  }}
                   onClearCompiler={sim.clearCompileOutput}
                   onClearSerial={sim.clearSerial}
                   collapsed={consoleCollapsed}

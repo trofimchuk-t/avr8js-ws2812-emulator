@@ -8,9 +8,15 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import type { MatrixHandle } from "../components/Matrix";
 import { buildHex } from "../compile";
 import { errorText } from "../lib/errors";
+import {
+  EMPTY_LOG,
+  appendInput,
+  appendOutput,
+  type SerialChunk,
+  type SerialLog,
+} from "../lib/serial";
 import { usePref } from "../lib/storage";
 
-const MAX_SERIAL_CHARS = 20_000;
 /** How often buffered serial output and the simulated time reach React state. */
 const FLUSH_MS = 100;
 
@@ -24,27 +30,34 @@ export interface CompileOutput {
   failed: boolean;
 }
 
-/** Compiles and runs the sketch, and collects compiler output, serial output and simulated time. */
+/**
+ * Compiles and runs the sketch, and collects compiler output, the serial terminal log and the
+ * simulated time.
+ */
 export function useSimulation(matrix: RefObject<MatrixHandle | null>) {
   const simulation = useRef<Simulation | null>(null);
   const alive = useRef(true);
   const [runState, setRunState] = useState<RunState>("idle");
   const [runningLed, setRunningLed] = useState<LedConfig | null>(null);
   const [compileOutput, setCompileOutput] = useState<CompileOutput | null>(null);
-  const [serial, setSerial] = useState("");
+  const [serial, setSerial] = useState<SerialLog>(EMPTY_LOG);
   const [nanos, setNanos] = useState<number | null>(null);
   const [speed, setSpeedPref] = usePref<Speed>("speed", 0);
-  const serialBuffer = useRef<string | null>(null);
+  /** Output not yet in `serial`; a new chunk starts after every "\n". */
+  const serialBuffer = useRef<SerialChunk[]>([]);
   const latestNanos = useRef<number | null>(null);
+
+  const takeSerial = () => {
+    const chunks = serialBuffer.current;
+    serialBuffer.current = [];
+    return chunks;
+  };
 
   useEffect(() => {
     alive.current = true;
     const timer = setInterval(() => {
-      if (serialBuffer.current !== null) {
-        const text = serialBuffer.current;
-        serialBuffer.current = null;
-        setSerial((prev) => (prev + text).slice(-MAX_SERIAL_CHARS));
-      }
+      const chunks = takeSerial();
+      if (chunks.length) setSerial((prev) => appendOutput(prev, chunks));
       setNanos(latestNanos.current);
     }, FLUSH_MS);
     return () => {
@@ -86,8 +99,8 @@ export function useSimulation(matrix: RefObject<MatrixHandle | null>) {
   const run = useCallback(
     async ({ files, main, led }: { files: SketchFile[]; main: string; led: LedConfig }) => {
       stop();
-      setSerial("");
-      serialBuffer.current = null;
+      setSerial(EMPTY_LOG);
+      serialBuffer.current = [];
       matrix.current?.clear();
       setRunState("compiling");
       try {
@@ -102,8 +115,11 @@ export function useSimulation(matrix: RefObject<MatrixHandle | null>) {
         const sim = createSimulation({
           hex: result.hex,
           led,
-          onSerial: (char) => {
-            serialBuffer.current = (serialBuffer.current ?? "") + char;
+          onSerial: (char, time) => {
+            const chunks = serialBuffer.current;
+            const last = chunks[chunks.length - 1];
+            if (last && !last.text.endsWith("\n")) last.text += char;
+            else chunks.push({ text: char, nanos: time });
           },
           onProgress: (time) => {
             latestNanos.current = time;
@@ -123,13 +139,26 @@ export function useSimulation(matrix: RefObject<MatrixHandle | null>) {
     [matrix, speed, stop],
   );
 
+  /** Sends `command` plus `ending` to the running sketch and echoes the command in the log. */
+  const send = useCallback((command: string, ending: string) => {
+    const sim = simulation.current;
+    if (!sim || (sim.state !== "running" && sim.state !== "paused")) return false;
+    sim.sendSerial(command + ending);
+    // Output so far goes before the echo.
+    const chunks = takeSerial();
+    const time = sim.nanos;
+    setSerial((prev) => appendInput(appendOutput(prev, chunks), command, time));
+    return true;
+  }, []);
+
   return {
     runState,
     runningLed,
     compileOutput,
     clearCompileOutput: useCallback(() => setCompileOutput(null), []),
     serial,
-    clearSerial: useCallback(() => setSerial(""), []),
+    clearSerial: useCallback(() => setSerial(EMPTY_LOG), []),
+    send,
     nanos,
     speed,
     setSpeed,

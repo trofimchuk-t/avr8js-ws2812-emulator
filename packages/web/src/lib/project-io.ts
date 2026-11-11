@@ -1,8 +1,10 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate";
 import {
   validateLedConfig,
+  validateSerialConfig,
   isValidSketchFileName,
   type LedConfig,
+  type SerialConfig,
   type SketchFile,
 } from "@avr8js-ws2812/engine";
 import { ledFromSketch, sanitizeBaseName } from "./sketch-files";
@@ -10,6 +12,7 @@ import { ledFromSketch, sanitizeBaseName } from "./sketch-files";
 export interface ProjectDraft {
   name: string;
   led: LedConfig;
+  serial?: SerialConfig;
   files: SketchFile[];
   main: string;
 }
@@ -40,7 +43,11 @@ export function exportProject(project: ProjectDraft): ExportedFile {
   const entries: Record<string, Uint8Array> = {};
   for (const file of project.files) entries[file.name] = strToU8(file.content);
   entries[MANIFEST] = strToU8(
-    JSON.stringify({ name: project.name, led: project.led, main: project.main }, null, 2),
+    JSON.stringify(
+      { name: project.name, led: project.led, serial: project.serial, main: project.main },
+      null,
+      2,
+    ),
   );
   return { filename: `${base}.zip`, mime: "application/zip", data: zipSync(entries) };
 }
@@ -99,7 +106,7 @@ export function importProject(filename: string, bytes: Uint8Array): ImportedProj
     files.push({ name: path, content: strFromU8(entries[path]) });
   }
 
-  let manifest: { name?: unknown; led?: unknown; main?: unknown } = {};
+  let manifest: { name?: unknown; led?: unknown; serial?: unknown; main?: unknown } = {};
   if (entries[MANIFEST]) {
     try {
       manifest = JSON.parse(strFromU8(entries[MANIFEST]));
@@ -116,11 +123,20 @@ export function importProject(filename: string, bytes: Uint8Array): ImportedProj
       warnings.push("Ignored an invalid LED configuration in project.json");
     }
   }
+  let serial: SerialConfig | undefined;
+  if (manifest.serial !== undefined) {
+    try {
+      serial = validateSerialConfig(manifest.serial);
+    } catch {
+      warnings.push("Ignored invalid serial settings in project.json");
+    }
+  }
   const name =
     typeof manifest.name === "string" && manifest.name.trim() ? manifest.name.trim() : title;
   return {
     name: name.slice(0, 100),
     led: led ?? ledFromSketch(files, main),
+    ...(serial && { serial }),
     files,
     main,
     warnings,

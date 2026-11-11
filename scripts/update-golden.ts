@@ -18,7 +18,7 @@ for (const file of (await readdir(sketchDir)).filter((f) => f.endsWith(".ino")).
   const source = await readFile(new URL(file, sketchDir), "utf8");
   const { config, warnings } = parseSketchConfig(source);
   if (warnings.length) throw new Error(`${file}: ${warnings.join(" ")}`);
-  const result = await compiler.compile(source);
+  const result = await compiler.compile({ files: [{ name: file, content: source }], main: file });
   if (!result.hex) throw new Error(`${file} failed to compile:\n${result.stderr}`);
   await writeFile(new URL(`${name}.hex`, fixtureDir), result.hex);
   golden[name] = runGolden(result.hex, config);

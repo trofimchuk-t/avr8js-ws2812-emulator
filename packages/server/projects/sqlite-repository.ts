@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
+import { DEFAULT_SERIAL_CONFIG } from "@avr8js-ws2812/engine";
 import type { NewProject, Project, ProjectPatch, ProjectRepository } from "./types.ts";
 
 const MIGRATIONS_DIR = new URL("./migrations/", import.meta.url);
@@ -32,6 +33,7 @@ interface Row {
   owner_id: string;
   name: string;
   led: string;
+  serial: string | null;
   visual: string | null;
   sketch_ref: string;
   main_file: string;
@@ -45,6 +47,7 @@ function toProject(row: Row): Project {
     ownerId: row.owner_id,
     name: row.name,
     led: JSON.parse(row.led),
+    serial: row.serial === null ? { ...DEFAULT_SERIAL_CONFIG } : JSON.parse(row.serial),
     sketchRef: row.sketch_ref,
     mainFile: row.main_file,
     createdAt: row.created_at,
@@ -86,14 +89,15 @@ export class SqliteProjectRepository implements ProjectRepository {
     const id = randomUUID();
     this.db
       .prepare(
-        `INSERT INTO projects (id, owner_id, name, led, visual, sketch_ref, main_file, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO projects (id, owner_id, name, led, serial, visual, sketch_ref, main_file, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
         input.ownerId,
         input.name,
         JSON.stringify(input.led),
+        JSON.stringify(input.serial ?? DEFAULT_SERIAL_CONFIG),
         input.visual === undefined ? null : JSON.stringify(input.visual),
         input.sketchRef,
         input.mainFile,
@@ -109,12 +113,13 @@ export class SqliteProjectRepository implements ProjectRepository {
     const next = { ...current, ...patch };
     this.db
       .prepare(
-        `UPDATE projects SET name = ?, led = ?, visual = ?, sketch_ref = ?, main_file = ?, updated_at = ?
+        `UPDATE projects SET name = ?, led = ?, serial = ?, visual = ?, sketch_ref = ?, main_file = ?, updated_at = ?
          WHERE id = ?`,
       )
       .run(
         next.name,
         JSON.stringify(next.led),
+        JSON.stringify(next.serial),
         next.visual === undefined ? null : JSON.stringify(next.visual),
         next.sketchRef,
         next.mainFile,

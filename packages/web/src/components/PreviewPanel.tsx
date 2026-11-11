@@ -1,8 +1,9 @@
 import { wiringGrid, type LedConfig } from "@avr8js-ws2812/engine";
-import { Pencil } from "lucide-react";
+import { Maximize2, Minimize2, Pencil } from "lucide-react";
 import { useMemo, type RefObject } from "react";
 import { usePref } from "../lib/storage";
 import { Matrix, type MatrixHandle, type Zoom } from "./Matrix";
+import { IconButton } from "./ui";
 import { useWiringEditor, WiringBar, WiringOverlay } from "./WiringEditor";
 
 const ZOOMS: { value: Zoom; label: string }[] = [
@@ -29,12 +30,17 @@ export function PreviewPanel({
   led,
   matrix,
   onChange,
+  maximized = false,
+  onToggleMaximized,
 }: {
   /** The layout being shown: the running one, or the project settings. */
   led: LedConfig;
   matrix: RefObject<MatrixHandle | null>;
   /** Changes the project's LED settings (the wiring editor of a custom matrix). */
   onChange?: (led: LedConfig) => void;
+  /** The preview covers the whole workspace (the toolbar stays visible). */
+  maximized?: boolean;
+  onToggleMaximized?: () => void;
 }) {
   const [zoom, setZoom] = usePref<Zoom>("zoom", "fit");
   const wiring = useWiringEditor(led, onChange);
@@ -47,7 +53,7 @@ export function PreviewPanel({
   const reversed = (layout.kind === "strip" || layout.kind === "ring") && !!layout.reversed;
 
   return (
-    <section className="preview" aria-label="LED preview">
+    <section className={`preview${maximized ? " maximized" : ""}`} aria-label="LED preview">
       <div className="panel-header">
         <h2>Preview</h2>
         <span className="panel-meta">{describe(led)}</span>
@@ -70,6 +76,15 @@ export function PreviewPanel({
             </button>
           ))}
         </div>
+        {onToggleMaximized && (
+          <IconButton
+            label={maximized ? "Restore preview (Esc)" : "Maximize preview"}
+            aria-pressed={maximized}
+            onClick={onToggleMaximized}
+          >
+            {maximized ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+          </IconButton>
+        )}
       </div>
       {wiring?.editing && <WiringBar editor={wiring} />}
       <Matrix

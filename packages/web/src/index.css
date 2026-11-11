@@ -566,6 +566,7 @@ h2 {
 }
 
 .workspace {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
@@ -957,6 +958,16 @@ h2 {
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+/* Maximized: the same element (so the matrix keeps its pixels) covers the workspace below the toolbar.
+   No panel wrapper between them is positioned, so .workspace is the containing block. */
+.preview.maximized {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  height: auto;
+  background: var(--surface);
 }
 
 .stage {

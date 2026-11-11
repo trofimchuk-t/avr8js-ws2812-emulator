@@ -68,6 +68,12 @@ export function ProjectEditor({
   const consolePanel = useRef<PanelImperativeHandle>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  // The preview can cover the whole workspace; stopping the simulation restores it.
+  const [previewMaximized, setPreviewMaximized] = useState(false);
+  const stop = () => {
+    setPreviewMaximized(false);
+    sim.stop();
+  };
 
   const onRail = (tab: SideTab) => {
     const panel = sidebar.current;
@@ -115,7 +121,7 @@ export function ProjectEditor({
   // --- keyboard shortcuts (capture phase, so they win over Monaco's own bindings) ---
   const handlers: Record<ShortcutId, () => void> = {
     run: () => draft && sim.runState !== "compiling" && void sim.run(draft),
-    stop: sim.stop,
+    stop,
     save: () => void save(),
     sidebar: () => onRail(sideTab),
     console: toggleConsole,
@@ -123,12 +129,19 @@ export function ProjectEditor({
   };
   const handlersRef = useRef(handlers);
   handlersRef.current = handlers;
+  const previewMaximizedRef = useRef(previewMaximized);
+  previewMaximizedRef.current = previewMaximized;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const id = matchShortcut(e);
-      if (!id) return;
       // A modal dialog owns the keyboard (Enter there submits it).
       if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return;
+      if (e.key === "Escape" && previewMaximizedRef.current) {
+        e.preventDefault();
+        setPreviewMaximized(false);
+        return;
+      }
+      const id = matchShortcut(e);
+      if (!id) return;
       e.preventDefault();
       e.stopPropagation();
       handlersRef.current[id]();
@@ -175,7 +188,7 @@ export function ProjectEditor({
         speed={sim.speed}
         disabled={!draft}
         onRun={() => draft && void sim.run(draft)}
-        onStop={sim.stop}
+        onStop={stop}
         onPause={sim.pause}
         onResume={sim.resume}
         onSpeed={sim.setSpeed}
@@ -191,7 +204,7 @@ export function ProjectEditor({
         </div>
       )}
 
-      <div className="workspace">
+      <div className={`workspace${previewMaximized ? " preview-maximized" : ""}`}>
         <nav className="rail" aria-label="Sidebar">
           <IconButton
             label="Files"
@@ -336,6 +349,8 @@ export function ProjectEditor({
                   led={shownLed}
                   matrix={matrix}
                   onChange={draft ? (led) => update({ led }) : undefined}
+                  maximized={previewMaximized}
+                  onToggleMaximized={() => setPreviewMaximized((m) => !m)}
                 />
               </Panel>
               <Separator className="resize-handle" />

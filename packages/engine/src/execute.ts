@@ -9,6 +9,8 @@ import {
   portDConfig,
   AVRUSART,
   usart0Config,
+  AVRADC,
+  adcConfig,
 } from "avr8js";
 import { loadHex } from "./intelhex.ts";
 
@@ -26,6 +28,8 @@ export class AVRRunner {
   readonly portC: AVRIOPort;
   readonly portD: AVRIOPort;
   readonly usart: AVRUSART;
+  /** Without it `analogRead()` waits forever for ADSC to clear. Inputs read 0 V. */
+  readonly adc: AVRADC;
 
   readonly MHZ = CPU_HZ;
 
@@ -37,6 +41,7 @@ export class AVRRunner {
     this.portC = new AVRIOPort(this.cpu, portCConfig);
     this.portD = new AVRIOPort(this.cpu, portDConfig);
     this.usart = new AVRUSART(this.cpu, usart0Config, this.MHZ);
+    this.adc = new AVRADC(this.cpu, adcConfig);
   }
 
   /** Executes one instruction. */

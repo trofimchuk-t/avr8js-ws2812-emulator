@@ -9,6 +9,8 @@ RUN corepack enable && yarn install --frozen-lockfile
 COPY demo_sketches ./demo_sketches
 COPY packages/engine ./packages/engine
 COPY packages/web ./packages/web
+# .git is not in the build context: pass the version in (see README).
+ARG APP_VERSION
 RUN yarn workspace @avr8js-ws2812/web build
 
 FROM nginx:1.27-alpine

@@ -4,6 +4,7 @@ import type { SaveState } from "../hooks/useProjectDraft";
 import { useTheme, type ThemePref } from "../lib/theme";
 import { useProjectActions } from "./ProjectActions";
 import { shortcutText } from "../lib/shortcuts";
+import { APP_VERSION, BUILD_DATE } from "../lib/version";
 import { IconButton, Menu, MenuItem } from "./ui";
 
 const SAVE_LABEL: Record<SaveState, string> = {
@@ -97,6 +98,11 @@ function HelpMenu({ onOpenShortcuts }: { onOpenShortcuts: () => void }) {
           </a>
         </DropdownMenu.Item>
       ))}
+      <DropdownMenu.Separator className="menu-separator" />
+      <DropdownMenu.Label className="menu-label app-version">
+        Version {APP_VERSION}
+        {BUILD_DATE && ` · built ${BUILD_DATE}`}
+      </DropdownMenu.Label>
     </Menu>
   );
 }

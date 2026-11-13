@@ -21,3 +21,4 @@ Thumbs.db
 
 # Local server data (SQLite database and sketch files)
 data/
+*.tar

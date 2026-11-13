@@ -6,13 +6,13 @@ ARG ARDUINO_CLI_VERSION=1.5.1
 ARG AVR_CORE_VERSION=1.8.8
 ARG FASTLED_VERSION=3.6.0
 
+# curl also serves the compose healthcheck.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+    | BINDIR=/usr/local/bin sh -s ${ARDUINO_CLI_VERSION} \
     && rm -rf /var/lib/apt/lists/* \
     && corepack enable
-
-RUN curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
-    | BINDIR=/usr/local/bin sh -s ${ARDUINO_CLI_VERSION}
 
 # Run as an unprivileged user; the toolchain lives in its home directory.
 RUN useradd --create-home --shell /usr/sbin/nologin builder
@@ -21,14 +21,19 @@ WORKDIR /home/builder/app
 
 RUN arduino-cli core update-index \
     && arduino-cli core install arduino:avr@${AVR_CORE_VERSION} \
-    && arduino-cli lib install FastLED@${FASTLED_VERSION}
+    && arduino-cli lib install FastLED@${FASTLED_VERSION} \
+    && rm -rf ~/.arduino15/staging ~/.arduino15/library_index.json*
 
-# Workspaces: all package.json files must be present for a frozen-lockfile install.
+# Workspaces: every workspace's package.json must be present for a frozen-lockfile install.
 COPY --chown=builder package.json yarn.lock ./
 COPY --chown=builder packages/engine/package.json ./packages/engine/
-COPY --chown=builder packages/web/package.json ./packages/web/
 COPY --chown=builder packages/server/package.json ./packages/server/
-RUN yarn install --frozen-lockfile --production
+# The web app's dependencies (Monaco, icons, React: ~200 MB) are not needed by the server,
+# so its manifest is a stub without dependencies. The cache would only duplicate node_modules.
+RUN mkdir -p packages/web \
+    && echo '{"name":"@avr8js-ws2812/web","version":"0.0.0","private":true}' > packages/web/package.json \
+    && yarn install --frozen-lockfile --production \
+    && yarn cache clean
 COPY --chown=builder packages/engine ./packages/engine
 COPY --chown=builder packages/server ./packages/server
 
